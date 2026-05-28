@@ -1,0 +1,57 @@
+#!/bin/sh
+######################################################################
+# File: dk0
+#
+# Recommendation: Place this file in source control.
+# It bootstraps dk0 if needed, then invokes it from this repository.
+######################################################################
+
+set -euf
+
+DK_PROJECT_DIR=$(dirname "$0")
+DK_PROJECT_DIR=$(cd "$DK_PROJECT_DIR" && pwd)
+
+if [ -n "${COMSPEC:-}" ] && [ -x /usr/bin/cmd ] && [ -x /usr/bin/cygpath ] && [ -e "$DK_PROJECT_DIR/dk0.cmd" ]; then
+    DK_PROJECT_DIR_WIN=$(/usr/bin/cygpath -aw "$DK_PROJECT_DIR")
+    exec /usr/bin/cmd /c "$DK_PROJECT_DIR_WIN\\dk0.cmd" "$@"
+fi
+
+majminpat_ver=2.4.2.173
+cksum256_darwin_arm64=336a6b4440360ff1ba9e7996e3b9cf8b70efb3d6765481dcd760fc1798d5fae4
+cksum256_darwin_x86_64=45e3ffc974e4e792e8c21a66324a66776572d531f9b5aeb50203ddc202403833
+cksum256_linux_x86_64=27f8271143b16f57016c6725df2678354e706c041eb283ca8f2721f5b5b6e401
+cksum256_linux_x86=2d543ecb3af9efaba2ea17d069ac4c52c061ebbb3835dc37d7d5652baa1df8a5
+
+dk_pwd=$PWD
+
+download_to_build() {
+    abi=$1
+    checksum=$2
+    extexe=
+    case "$abi" in
+      windows_*) extexe=.exe ;;
+    esac
+    install -d build
+    outfile="build/dk0-$abi$extexe"
+    if [ ! -f "$outfile" ]; then
+        curl -fsSL -o "$outfile" "https://gitlab.com/api/v4/projects/60486861/packages/generic/dk0/$majminpat_ver/dk0-$abi$extexe"
+    fi
+    actual=$(sha256sum "$outfile" | awk '{print $1}')
+    [ "$actual" = "$checksum" ]
+}
+
+uname_s=$(uname -s)
+uname_m=$(uname -m)
+case "$uname_s:$uname_m" in
+  Darwin:arm64) abi=darwin_arm64; checksum=$cksum256_darwin_arm64 ;;
+  Darwin:x86_64) abi=darwin_x86_64; checksum=$cksum256_darwin_x86_64 ;;
+  Linux:x86_64) abi=linux_x86_64; checksum=$cksum256_linux_x86_64 ;;
+  Linux:i686|Linux:i386) abi=linux_x86; checksum=$cksum256_linux_x86 ;;
+  *)
+    echo "Unsupported host for ./dk0 bootstrap." >&2
+    exit 1
+    ;;
+esac
+
+download_to_build "$abi" "$checksum"
+exec "$DK_PROJECT_DIR/build/dk0-$abi" -isystem "$DK_PROJECT_DIR/etc/dk/i" --cell "dk0=$DK_PROJECT_DIR" "$@"

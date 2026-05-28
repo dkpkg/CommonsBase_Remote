@@ -1,0 +1,28 @@
+# Distribution for CommonsBase_Remote
+
+## GitHub remote dry-run rule
+
+The initial package exports the GitHub remote orchestration UI rule in dry-run
+mode.
+
+  $ run CommonsBase_Remote.GitHub.Run@0.1.0 dry_run=true timestamp=20260527165106 repo=github.com/OWNER/REPO cmd=get-bundle commandvsl='get-bundle MlFront_Std.Sample.Abc@1.0.0' 'argv[]=get-bundle' 'argv[]=MlFront_Std.Sample.Abc@1.0.0'
+  [dry-run] CommonsBase_Remote.GitHub.Run@0.1.0
+  repo=github.com/OWNER/REPO
+  workspace=dk.u
+  sessions=4
+  retention=8
+  timestamp=20260527165106
+  create_repo=false
+  dry_run=true
+  cmd=get-bundle
+  commandvsl=get-bundle MlFront_Std.Sample.Abc@1.0.0
+  session_root_branch=dk-session-root
+  session_branch=dk-session-1
+  workflow_path=.github/workflows/dk-session.1.yml
+  workflow_comment=Orchestration Version: 20260527
+  audit_path=etc/dk/s/1-audit.txt
+  audit_line=20260527165106Z get-bundle MlFront_Std.Sample.Abc@1.0.0
+  stage_tag=0.1.20260527165106-stage
+  exec_tag=0.1.20260527165106-exec
+  argv[0]=get-bundle
+  argv[1]=MlFront_Std.Sample.Abc@1.0.0
