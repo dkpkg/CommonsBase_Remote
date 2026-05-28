@@ -98,7 +98,7 @@ function CommonsBase_Remote__GitHub__0_1_0.make_dry_run_plan(p)
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.print_plan(p)
+function CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, rule_name)
   local create_repo = "false"
   local dry_run = "false"
   local plan = CommonsBase_Remote__GitHub__0_1_0.make_dry_run_plan(p)
@@ -108,41 +108,41 @@ function CommonsBase_Remote__GitHub__0_1_0.print_plan(p)
   if p.dryrun then
     dry_run = "true"
   end
-  print("[dry-run] CommonsBase_Remote.GitHub.Run@0.1.0")
-  print("repo=" .. p.repo)
-  print("workspace=" .. p.workspace)
-  print("sessions=" .. tostring(p.sessions))
-  print("retention=" .. tostring(p.retention))
-  print("timestamp=" .. p.timestamp)
-  print("create_repo=" .. create_repo)
-  print("dry_run=" .. dry_run)
-  print("cmd=" .. p.cmd)
-  print("commandvsl=" .. p.commandvsl)
-  print("session_root_branch=" .. plan.session_root_branch)
-  print("session_branch=" .. plan.session_branch)
-  print("workflow_path=" .. plan.workflow_path)
-  print("workflow_comment=Orchestration Version: " .. plan.orchestration_date)
-  print("audit_path=" .. plan.audit_path)
-  print("audit_line=" .. plan.audit_line)
-  print("stage_tag=" .. plan.stage_tag)
-  print("exec_tag=" .. plan.exec_tag)
+  request.io.write(file, "[dry-run] CommonsBase_Remote.GitHub." .. rule_name .. "@0.1.0\n")
+  request.io.write(file, "repo=" .. p.repo .. "\n")
+  request.io.write(file, "workspace=" .. p.workspace .. "\n")
+  request.io.write(file, "sessions=" .. tostring(p.sessions) .. "\n")
+  request.io.write(file, "retention=" .. tostring(p.retention) .. "\n")
+  request.io.write(file, "timestamp=" .. p.timestamp .. "\n")
+  request.io.write(file, "create_repo=" .. create_repo .. "\n")
+  request.io.write(file, "dry_run=" .. dry_run .. "\n")
+  request.io.write(file, "cmd=" .. p.cmd .. "\n")
+  request.io.write(file, "commandvsl=" .. p.commandvsl .. "\n")
+  request.io.write(file, "session_root_branch=" .. plan.session_root_branch .. "\n")
+  request.io.write(file, "session_branch=" .. plan.session_branch .. "\n")
+  request.io.write(file, "workflow_path=" .. plan.workflow_path .. "\n")
+  request.io.write(file, "workflow_comment=Orchestration Version: " .. plan.orchestration_date .. "\n")
+  request.io.write(file, "audit_path=" .. plan.audit_path .. "\n")
+  request.io.write(file, "audit_line=" .. plan.audit_line .. "\n")
+  request.io.write(file, "stage_tag=" .. plan.stage_tag .. "\n")
+  request.io.write(file, "exec_tag=" .. plan.exec_tag .. "\n")
   if p.requested_trace_key_id then
-    print("requested_trace_key_id=" .. p.requested_trace_key_id)
+    request.io.write(file, "requested_trace_key_id=" .. p.requested_trace_key_id .. "\n")
   end
   if p.requested_trace_key_description then
-    print("requested_trace_key_description=" .. p.requested_trace_key_description)
+    request.io.write(file, "requested_trace_key_description=" .. p.requested_trace_key_description .. "\n")
   end
   local i = 1
   while p.argv[i] do
-    print("argv[" .. tostring(i - 1) .. "]=" .. p.argv[i])
+    request.io.write(file, "argv[" .. tostring(i - 1) .. "]=" .. p.argv[i] .. "\n")
     i = i + 1
   end
 end
 
-function uirules.Run(command, request)
+function CommonsBase_Remote__GitHub__0_1_0.handle_run(command, request, rule_name)
   local p = CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
   if not p.dryrun then
-    error("Only `dry_run=true` is implemented for CommonsBase_Remote.GitHub.Run@0.1.0")
+    error("Only `dry_run=true` is implemented for CommonsBase_Remote.GitHub." .. rule_name .. "@0.1.0")
   end
 
   if command == "submit" then
@@ -166,6 +166,84 @@ function uirules.Run(command, request)
     }
   elseif command == "ui" then
     CommonsBase_Remote__GitHub__0_1_0.print_plan(p)
+    request.io.flush()
+    if request.continued and request.continued.dry_run_complete then
+      request.io.close(request.continued.dry_run_complete)
+    end
+  end
+end
+
+function rules.F_DryRunPlan(command, request)
+  local p = CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
+  local path = "dry-run.txt"
+  if not p.dryrun then
+    error("Only `dry_run=true` is implemented for CommonsBase_Remote.GitHub.F_DryRunPlan@0.1.0")
+  end
+  if command == "declareoutput" then
+    return {
+      declareoutput = {
+        return_asset = {
+          id = "CommonsBase_Remote.GitHub.F_DryRunPlan.Output." .. request.rule.generatesymbol() .. "@0.1.0",
+          path = path
+        }
+      }
+    }
+  elseif command == "submit" then
+    local file = request.io.open(path, "w")
+    CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, "F_DryRunPlan")
+    local origin, asset = request.io.toasset(file, {
+      path = path,
+      origin_name = "CommonsBase_Remote"
+    })
+    return {
+      submit = {
+        values = {
+          schema_version = { major = 1, minor = 0 },
+          bundles = {
+            {
+              id = request.submit.outputid,
+              listing = { origins = { origin } },
+              assets = { asset }
+            }
+          }
+        }
+      }
+    }
+  end
+end
+
+function uirules.Run(command, request)
+  local p = CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
+  if not p.dryrun then
+    error("Only `dry_run=true` is implemented for CommonsBase_Remote.GitHub.Run@0.1.0")
+  end
+  if command == "submit" then
+    local bundle, getbundle = request.ui.glob {
+      trace = 0,
+      cell = "root",
+      patterns = { "README.md" }
+    }
+    return {
+      submit = {
+        values = {
+          schema_version = { major = 1, minor = 0 },
+          bundles = { bundle }
+        },
+        expressions = {
+          directories = {
+            dry_run_complete = "$(" .. getbundle .. " -d :)"
+          }
+        }
+      }
+    }
+  elseif command == "ui" then
+    local file = request.io.open("dry-run-plan.txt", "w")
+    CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, "Run")
+    request.io.close(file)
+    file = request.io.open("dry-run-plan.txt", "r")
+    local text = request.io.read(file, "all")
+    request.io.close(file)
+    print(text)
     request.io.flush()
     if request.continued and request.continued.dry_run_complete then
       request.io.close(request.continued.dry_run_complete)
