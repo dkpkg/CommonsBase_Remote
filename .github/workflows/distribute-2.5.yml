@@ -37,11 +37,31 @@ jobs:
             experimental-dk-owner: ${{ github.repository_owner == 'dkpkg' && 'diskuv' || github.repository_owner }}
             experimental-mlfront-ref: ${{ github.ref_type != 'tag' && 'HEAD' }}
 
+  combine:
+    needs: distribute
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176
+        with: { egress-policy: audit }
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Combine Modules
+        uses: diskuv/dk-distribute/combine@v2
+
       - name: Attest
         id: attest
         uses: actions/attest-build-provenance@v3
         with: { subject-path: dk-dist/* }
 
-      - name: Release
+      - name: Release ${{ github.job }}
         uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
         with: { files: dk-dist/*, body_path: ".dist-CHANGELOG.txt" }
