@@ -1,3 +1,11 @@
 ## workspace
 
-No workspace imports are required for the initial dry-run GitHub remote rule.
+  %% import { type="github-l2", repo="dkpkg/CommonsBase_Std" }
+  'import'
+  'github-l2'
+  { {
+      'CommonsBase_Std', '2.5.202605280411', {
+        'blake2b-256:278570d90d926f080f33e4a89df94486f855e4d2e88e48632abdee60b5c4a566',
+        'sha256:970b6ea33d306ff38f2d0d6961e3185b47bcb8ff5c610df29b49076fe464bd55',
+        'sha1:2404755f35fc0f1a7513426da6dc016ad79282fb'
+      } } }

@@ -7,3 +7,101 @@ mode. Running the free rule here distributes the entire scriptmodule.
 
   $ run-rule CommonsBase_Remote.GitHub.F_DryRunPlan@0.1.0 -f ${RUNTIME}/GitHub-0.1.0.plan.txt dry_run=true timestamp=20260527165106 repo=github.com/OWNER/REPO cmd=get-bundle commandvsl='get-bundle MlFront_Std.Sample.Abc@1.0.0' 'argv[]=get-bundle' 'argv[]=MlFront_Std.Sample.Abc@1.0.0'
   \test(pass)\;asset:CommonsBase_Remote.GitHub.F_DryRunPlan.Output.X6b5g2d4dmmwvata2pdsiwkw2yu@0.1.0+bn-20250101000000:dry-run.txt
+
+## GitHub remote execution flow
+
+The GitHub remote rule is designed so the user's project tree is only an input
+source. All remote-session git operations happen in the isolated commit
+directory `.dk/r/c` with commands such as `git -C .dk/r/c fetch`,
+`git -C .dk/r/c add`, and `git -C .dk/r/c push`. The user's project may have a
+different git remote, or may not be a git checkout at all.
+
+The detailed orchestration has three phases:
+
+1. **Bootstrap and local staging**
+
+   - Ensure the repository exists and has the remote-session branches
+     `dk-session-root` and `dk-session-<i>`.
+   - Ensure the repository has trusted recipient metadata:
+     - `DK_SESSION_KEY` stays in a GitHub secret.
+     - `dk_session_recipient` and `dk_session_recipient_sig` stay in GitHub
+       repository variables.
+     - The local orchestrator verifies the recipient signature before encrypting
+       any staged payload.
+   - Populate the isolated commit directory `.dk/r/c` from the user project,
+     including copies of:
+     - `dk.u`
+     - `dk0` and `dk0.cmd`
+     - optional `etc/dk/{d,i,v}`
+   - Use `.dk/r/c/t/{k,c,d}` as the isolated key, cache, and data directories
+     for local `dk0` operations in the commit directory.
+   - Commit the signify verify public key into `.dk/r/c` so the GitHub runner
+     can verify signed manifests without depending on GitHub variables for that
+     key.
+   - Run local `dk0 update` inside `.dk/r/c` to materialize the workspace
+     inputs needed by the remote command.
+   - Identify local valuestore assets and bundles (`a*` and `b*`) whose mirrors
+     are all strictly inside the user project directory. Reject any local origin
+     that escapes the project root.
+
+2. **Stage release publication**
+
+   - Pick a free session branch by shuffling session numbers and skipping any
+     session whose GitHub workflow is already running.
+   - Append the audited command line to the session audit file in `.dk/r/c`.
+   - Commit the stage control files in `.dk/r/c`, including the audit line, the
+     argument transport, the signed stage manifest, and
+     `.github/workflows/dk-session.<i>.yml`.
+   - Tag and push `0.1.<TS>-stage`.
+   - GitHub Actions creates a prerelease for the stage tag whose description is
+     the audited command line.
+   - After the stage prerelease exists, the local orchestrator uploads the
+     staged `a*` and `b*` valuestore files to that release, encrypting each file
+     for the verified `dk_session_recipient`.
+
+3. **Exec publication and result retrieval**
+
+   - Commit the execution payload in `.dk/r/c`, including the copied workspace
+     files, the signed `INDEX`, the committed signify verify public key, and the
+     workflow file.
+   - Tag and push `0.1.<TS>-exec`.
+   - GitHub Actions verifies `INDEX.sig`, validates the encrypted stage assets
+     against `INDEX`, decrypts them with `DK_SESSION_KEY`, runs the requested
+     value command or `test`/`lua`/`run` command, packages outputs and traces,
+     and creates the exec prerelease.
+   - The local orchestrator polls for the exec prerelease, downloads the result
+     artifacts, verifies them, and presents the final object, asset, output, or
+     displayable result like the existing local value commands do.
+
+### Files needed in the project tree
+
+| Path | Why needed |
+| --- | --- |
+| `dk.u` | Lists all the project directories needed remotely | 
+| `dk0` / `dk0.cmd` | Wrappers for local asset creation and remote command execution |
+
+### Files placed into the project tree
+
+The current reviewed layout places only the remote-control directory in the
+user project tree.
+
+| Path | Why it is in the project tree |
+| --- | --- |
+| `.dk/r/.gitignore` | Keeps the remote-control subtree out of the user's main git repository. |
+| `.dk/r/c/` | Isolated commit directory used as the remote-session git repository. Every remote git command is scoped with `git -C .dk/r/c ...`. |
+| `.dk/r/c/.git/` | Git metadata for the isolated commit repository. This is intentionally separate from any repository the user may have at the project root. |
+| `.dk/r/c/.gitignore` | Well-defined ignore policy for local-only isolated-repo state: it ignores `t/k/build.sec`, `t/c/`, and `t/d/` so local secrets, cache, and valuestore data are never staged by the remote-session repo. |
+| `.dk/r/c/dk.u` | Copy of the user's workspace file so the remote session can reproduce the selected workspace inputs without reading from the original project tree at execution time. |
+| `.dk/r/c/dk0` | POSIX wrapper copied from the user's project so GitHub Actions can invoke the same public wrapper logic inside the isolated commit repository. |
+| `.dk/r/c/dk0.cmd` | Windows wrapper copied from the user's project for parity with the committed remote-session payload. |
+| `.dk/r/c/etc/dk/d/` | Optional copy of distribution metadata required by the selected workspace. |
+| `.dk/r/c/etc/dk/i/` | Optional copy of import metadata required by the selected workspace. |
+| `.dk/r/c/etc/dk/v/` | Optional copy of value metadata required by the selected workspace. |
+| `.dk/r/c/.github/workflows/dk-session.<i>.yml` | Required by GitHub Actions. The workflow must live at this exact path inside the isolated commit repository. |
+| `.dk/r/c/t/k/` | Isolated temporary key material used by commit-repo-local staging. |
+| `.dk/r/c/t/c/` | Isolated cache directory for commit-repo-local `dk0` update and staging operations. |
+| `.dk/r/c/t/d/` | Isolated data directory that holds the local valuestore used to create the staged `a*` and `b*` release assets. |
+
+The user's original `dk.u`, `dk0`, `dk0.cmd`, and optional `etc/dk/{d,i,v}`
+remain the source inputs. The copies under `.dk/r/c` are the remote-session
+payload.
