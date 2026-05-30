@@ -568,6 +568,31 @@ function CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
   if symbol == "" then
     return "19700101000000"
   end
+
+  function CommonsBase_Remote__GitHub__0_1_0.json_string_field(json_text, field_name)
+    local text = tostring(json_text or "")
+    local needle = "\"" .. tostring(field_name or "") .. "\""
+    local search_from = 1
+    while true do
+      local key_start, key_end = string.find(text, needle, search_from, true)
+      if not key_start then
+        return nil
+      end
+      local colon = string.find(text, ":", key_end + 1, true)
+      if not colon then
+        return nil
+      end
+      local quote_start = string.find(text, "\"", colon + 1, true)
+      if quote_start then
+        local value_start = quote_start + 1
+        local value_end = string.find(text, "\"", value_start, true)
+        if value_end then
+          return string.sub(text, value_start, value_end - 1)
+        end
+      end
+      search_from = key_end + 1
+    end
+  end
   local out = {}
   local len = string.len(symbol)
   local i = 1
@@ -970,7 +995,7 @@ function CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, tag,
     local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
       request, p.gh, { "release", "view", tag, "-R", ownerrepo, "--json", "url" },
       { quiet = true })
-    local url = string.match(result.stdout or "", "\"url\"%s*:%s*\"([^\"]+)\"") or ""
+    local url = CommonsBase_Remote__GitHub__0_1_0.json_string_field(result.stdout, "url") or ""
     if result.code == "0" and url ~= "" then
       print("GitHub release: " .. url)
       return
@@ -993,9 +1018,9 @@ end
 
 function CommonsBase_Remote__GitHub__0_1_0.find_workflow_run(json_text)
   local segment = json_text or ""
-  local status = string.match(segment, "\"status\"%s*:%s*\"([^\"]+)\"")
-  local conclusion = string.match(segment, "\"conclusion\"%s*:%s*\"([^\"]+)\"") or ""
-  local url = string.match(segment, "\"url\"%s*:%s*\"([^\"]+)\"")
+  local status = CommonsBase_Remote__GitHub__0_1_0.json_string_field(segment, "status")
+  local conclusion = CommonsBase_Remote__GitHub__0_1_0.json_string_field(segment, "conclusion") or ""
+  local url = CommonsBase_Remote__GitHub__0_1_0.json_string_field(segment, "url")
   if not status and (not url or url == "") then
     return nil
   end
