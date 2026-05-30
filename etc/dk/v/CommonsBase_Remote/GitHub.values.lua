@@ -789,7 +789,13 @@ function CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p)
   if not timestamp then
     timestamp = CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(result.stderr)
   end
-  assert(timestamp, "Could not derive a timestamp from the current git HEAD")
+  if not timestamp then
+    -- Some wrapper scripts write command traces to stdout/stderr in a way that
+    -- can hide or suppress the captured git timestamp. Fall back to current UTC
+    -- so orchestration can still produce stage/exec tags.
+    timestamp = os.date("!%Y%m%d%H%M%S")
+  end
+  assert(timestamp, "Could not derive a timestamp")
   return timestamp
 end
 
