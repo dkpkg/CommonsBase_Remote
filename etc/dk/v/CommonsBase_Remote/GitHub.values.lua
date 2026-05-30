@@ -553,23 +553,6 @@ function CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(text)
       if ch < "0" or ch > "9" then
         ok = false
       end
-
-      function CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
-        local symbol = tostring(request.rule.generatesymbol() or "")
-        if symbol == "" then
-          return "19700101000000"
-        end
-        local out = {}
-        local len = string.len(symbol)
-        local i = 1
-        while i <= 14 do
-          local pos = ((i - 1) % len) + 1
-          local ch = string.byte(symbol, pos) or 0
-          out[i] = tostring(ch % 10)
-          i = i + 1
-        end
-        return table.concat(out, "")
-      end
       offset = offset + 1
     end
     if ok then
@@ -578,6 +561,23 @@ function CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(text)
     start = start + 1
   end
   return nil
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
+  local symbol = tostring(request.rule.generatesymbol() or "")
+  if symbol == "" then
+    return "19700101000000"
+  end
+  local out = {}
+  local len = string.len(symbol)
+  local i = 1
+  while i <= 14 do
+    local pos = ((i - 1) % len) + 1
+    local ch = string.byte(symbol, pos) or 0
+    out[i] = tostring(ch % 10)
+    i = i + 1
+  end
+  return table.concat(out, "")
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, dest_rel, content, mode)
