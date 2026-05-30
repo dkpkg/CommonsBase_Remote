@@ -568,31 +568,6 @@ function CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
   if symbol == "" then
     return "19700101000000"
   end
-
-  function CommonsBase_Remote__GitHub__0_1_0.json_string_field(json_text, field_name)
-    local text = tostring(json_text or "")
-    local needle = "\"" .. tostring(field_name or "") .. "\""
-    local search_from = 1
-    while true do
-      local key_start, key_end = string.find(text, needle, search_from, true)
-      if not key_start then
-        return nil
-      end
-      local colon = string.find(text, ":", key_end + 1, true)
-      if not colon then
-        return nil
-      end
-      local quote_start = string.find(text, "\"", colon + 1, true)
-      if quote_start then
-        local value_start = quote_start + 1
-        local value_end = string.find(text, "\"", value_start, true)
-        if value_end then
-          return string.sub(text, value_start, value_end - 1)
-        end
-      end
-      search_from = key_end + 1
-    end
-  end
   local out = {}
   local len = string.len(symbol)
   local i = 1
@@ -603,6 +578,31 @@ function CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
     i = i + 1
   end
   return table.concat(out, "")
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.json_string_field(json_text, field_name)
+  local text = tostring(json_text or "")
+  local needle = "\"" .. tostring(field_name or "") .. "\""
+  local search_from = 1
+  while true do
+    local key_start, key_end = string.find(text, needle, search_from, true)
+    if not key_start then
+      return nil
+    end
+    local colon = string.find(text, ":", key_end + 1, true)
+    if not colon then
+      return nil
+    end
+    local quote_start = string.find(text, "\"", colon + 1, true)
+    if quote_start then
+      local value_start = quote_start + 1
+      local value_end = string.find(text, "\"", value_start, true)
+      if value_end then
+        return string.sub(text, value_start, value_end - 1)
+      end
+    end
+    search_from = key_end + 1
+  end
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, dest_rel, content, mode)
