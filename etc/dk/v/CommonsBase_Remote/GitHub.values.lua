@@ -359,18 +359,22 @@ function CommonsBase_Remote__GitHub__0_1_0.path_join(base, child)
   return base .. sep .. child
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.get_temp_root(request)
-  local marker = CommonsBase_Remote__GitHub__0_1_0.write_text(request, "remote-github/.keep", "")
-  local slash = string.len(marker)
-  while slash >= 1 and string.sub(marker, slash, slash) ~= "/" and string.sub(marker, slash, slash) ~= "\\" do
-    slash = slash - 1
-  end
-  assert(slash >= 1, "Could not determine the remote-github temp root")
-  return string.sub(marker, 1, slash - 1)
-end
-
 function CommonsBase_Remote__GitHub__0_1_0.is_windows(request)
-  return string.find(CommonsBase_Remote__GitHub__0_1_0.get_temp_root(request), "\\", 1, true) ~= nil
+  local abi = tostring(request.execution and request.execution.ABIv3 or "")
+  if abi ~= "" then
+    return string.sub(abi, 1, 8) == "Windows_"
+  end
+  -- Some UI rule contexts do not populate request.execution.ABIv3.
+  -- Fall back to probing for cmd.exe availability.
+  local cap = request.ui.capture {
+    program = "cmd",
+    args = { "/d", "/c", "ver" },
+    max_output_bytes = 1024
+  }
+  if cap and cap.status == "exit" and cap.code == 0 then
+    return true
+  end
+  return false
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.write_text(request, path, content)
@@ -438,27 +442,13 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request)
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+  local file = request.io.open("dk0.cmd", "r")
+  local exists = request.io.isfile(file)
+  request.io.close(file)
+  if exists then
     return "dk0.cmd"
   end
   return "./dk0"
-end
-
-function CommonsBase_Remote__GitHub__0_1_0.local_cmd_program(request)
-  return "C:\\Windows\\System32\\cmd.exe"
-end
-
-function CommonsBase_Remote__GitHub__0_1_0.project_root(request)
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-    local result = CommonsBase_Remote__GitHub__0_1_0.capture(
-      request,
-      CommonsBase_Remote__GitHub__0_1_0.local_cmd_program(request),
-      { "/d", "/c", "cd" },
-      { quiet = true })
-    return CommonsBase_Remote__GitHub__0_1_0.trim(result.stdout)
-  end
-  local result = CommonsBase_Remote__GitHub__0_1_0.capture(request, "pwd", {}, { quiet = true })
-  return CommonsBase_Remote__GitHub__0_1_0.trim(result.stdout)
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request)
@@ -773,23 +763,51 @@ function CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(request, w
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.resolve_programs(request, p)
-  if p.gh == "gh" then
-    p.gh = CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(
-      request,
-      "resolve-gh",
-      "gh",
-      { "C:\\Program Files\\GitHub CLI" })
-  elseif string.find(p.gh, " ", 1, true) then
-    p.gh = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-gh", p.gh)
+  local gh_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, p.gh, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+  if gh_probe.code ~= "0" then
+    if p.gh == "gh" then
+      local wrapped = CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(
+        request,
+        "resolve-gh",
+        "gh",
+        { "C:\\Program Files\\GitHub CLI" })
+      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+        request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+      if wrapped_probe.code == "0" then
+        p.gh = wrapped
+      end
+    elseif string.find(p.gh, " ", 1, true) then
+      local wrapped = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-gh", p.gh)
+      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+        request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+      if wrapped_probe.code == "0" then
+        p.gh = wrapped
+      end
+    end
   end
-  if p.git == "git" then
-    p.git = CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(
-      request,
-      "resolve-git",
-      "git",
-      { "C:\\Program Files\\Git\\cmd", "C:\\Program Files\\Git\\bin" })
-  elseif string.find(p.git, " ", 1, true) then
-    p.git = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-git", p.git)
+  local git_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, p.git, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+  if git_probe.code ~= "0" then
+    if p.git == "git" then
+      local wrapped = CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(
+        request,
+        "resolve-git",
+        "git",
+        { "C:\\Program Files\\Git\\cmd", "C:\\Program Files\\Git\\bin" })
+      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+        request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+      if wrapped_probe.code == "0" then
+        p.git = wrapped
+      end
+    elseif string.find(p.git, " ", 1, true) then
+      local wrapped = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-git", p.git)
+      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+        request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+      if wrapped_probe.code == "0" then
+        p.git = wrapped
+      end
+    end
   end
 end
 
@@ -823,7 +841,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ownerrepo(repo)
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p)
-  local result = CommonsBase_Remote__GitHub__0_1_0.capture(
+  local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request, p.git, { "show", "-s", "--date=format:%Y%m%d%H%M%S", "--format=%cd", "HEAD" },
     { quiet = true, allowfailure = true })
   local timestamp = CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(result.stdout)

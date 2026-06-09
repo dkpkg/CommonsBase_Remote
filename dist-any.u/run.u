@@ -40,6 +40,9 @@ The detailed orchestration has three phases:
      key.
    - Run local `dk0 update` inside `.dk/r/c` to materialize the workspace
      inputs needed by the remote command.
+   - Resolve host tools (`git`, `gh`) by probing the requested program first,
+     then on Windows falling back to generated wrapper commands that extend
+     `PATH` with known install directories when direct lookup fails.
    - Identify local valuestore assets and bundles (`a*` and `b*`) whose mirrors
      are all strictly inside the user project directory. Reject any local origin
      that escapes the project root.
