@@ -457,7 +457,13 @@ function CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, dir, nam
   local i = 1
   while entries[i] do
     local entry = entries[i]
-    if request.io.isfile(entry) then
+    if request.io.isdir(entry) then
+      local nested = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, entry, name)
+      request.io.close(entry)
+      if nested then
+        return nested
+      end
+    elseif request.io.isfile(entry) then
       local rel = request.io.realpath(entry, { relative = 1 })
       if CommonsBase_Remote__GitHub__0_1_0.basename(rel) == name then
         local abs = request.io.realpath(entry)
@@ -527,6 +533,25 @@ function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_d
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, args)
+  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+    local root = CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
+    if root ~= "" then
+      local cmdline = ".\\dk0.cmd"
+      local i = 1
+      while args[i] do
+        cmdline = cmdline .. " " .. CommonsBase_Remote__GitHub__0_1_0.windows_quote(args[i])
+        i = i + 1
+      end
+      local root_result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+        request,
+        "cmd",
+        { "/d", "/c", cmdline },
+        { cwd = root, allowfailure = true })
+      if root_result.code == "0" then
+        return root_result
+      end
+    end
+  end
   if snapshot_dir then
     local cmd_args = { "/d", "/c", "dk0.cmd" }
     local i = 1
@@ -543,9 +568,10 @@ function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, 
       return cmd_result
     end
   end
+  local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
   return CommonsBase_Remote__GitHub__0_1_0.capture(
     request,
-    CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir),
+    local_program,
     args)
 end
 
@@ -560,7 +586,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(
       request,
       snapshot_dir,
-      { "get-object", "CommonsBase_Std.Coreutils@0.6.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" })
+      { "get-object", "CommonsBase_Std.Coreutils@0.8.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" })
   end
   return program
 end
