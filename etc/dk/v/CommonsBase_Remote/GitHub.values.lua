@@ -442,10 +442,21 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request)
-  local file = request.io.open("dk0.cmd", "r")
-  local exists = request.io.isfile(file)
-  request.io.close(file)
-  if exists then
+  local cmd_file = request.io.open("dk0.cmd", "r")
+  if request.io.isfile(cmd_file) then
+    local cmd_abs = request.io.realpath(cmd_file)
+    request.io.close(cmd_file)
+    return cmd_abs
+  end
+  request.io.close(cmd_file)
+  local sh_file = request.io.open("dk0", "r")
+  if request.io.isfile(sh_file) then
+    local sh_abs = request.io.realpath(sh_file)
+    request.io.close(sh_file)
+    return sh_abs
+  end
+  request.io.close(sh_file)
+  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
     return "dk0.cmd"
   end
   return "./dk0"
