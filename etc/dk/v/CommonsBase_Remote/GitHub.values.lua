@@ -452,13 +452,32 @@ function CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, path)
   return nil
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, dir, name)
+  local entries = request.io.list(dir, "all")
+  local i = 1
+  while entries[i] do
+    local entry = entries[i]
+    if request.io.isfile(entry) then
+      local rel = request.io.realpath(entry, { relative = 1 })
+      if CommonsBase_Remote__GitHub__0_1_0.basename(rel) == name then
+        local abs = request.io.realpath(entry)
+        request.io.close(entry)
+        return abs
+      end
+    end
+    request.io.close(entry)
+    i = i + 1
+  end
+  return nil
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
   if snapshot_dir then
-    local snapshot_cmd = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, snapshot_dir .. "/dk0.cmd")
+    local snapshot_cmd = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, snapshot_dir, "dk0.cmd")
     if snapshot_cmd then
       return snapshot_cmd
     end
-    local snapshot_sh = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, snapshot_dir .. "/dk0")
+    local snapshot_sh = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, snapshot_dir, "dk0")
     if snapshot_sh then
       return snapshot_sh
     end
