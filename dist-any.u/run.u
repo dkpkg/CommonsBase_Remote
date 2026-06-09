@@ -90,7 +90,7 @@ user project tree.
 | `.dk/r/.gitignore` | Keeps the remote-control subtree out of the user's main git repository. |
 | `.dk/r/c/` | Isolated commit directory used as the remote-session git repository. Every remote git command is scoped with `git -C .dk/r/c ...`. |
 | `.dk/r/c/.git/` | Git metadata for the isolated commit repository. This is intentionally separate from any repository the user may have at the project root. |
-| `.dk/r/c/.gitignore` | Well-defined ignore policy for local-only isolated-repo state: it ignores `t/k/build.sec`, `t/c/`, and `t/d/` so local secrets, cache, and valuestore data are never staged by the remote-session repo. |
+| `.dk/r/c/.gitignore` | Well-defined ignore policy for local-only isolated-repo state: it ignores `.local`, `t/k/build.sec`, `t/c/`, and `t/d/` so local secrets, cache, and valuestore data are never staged by the remote-session repo. |
 | `.dk/r/c/dk.u` | Copy of the user's workspace file so the remote session can reproduce the selected workspace inputs without reading from the original project tree at execution time. |
 | `.dk/r/c/dk0` | POSIX wrapper copied from the user's project so GitHub Actions can invoke the same public wrapper logic inside the isolated commit repository. |
 | `.dk/r/c/dk0.cmd` | Windows wrapper copied from the user's project for parity with the committed remote-session payload. |
@@ -101,6 +101,7 @@ user project tree.
 | `.dk/r/c/t/k/` | Isolated temporary key material used by commit-repo-local staging. |
 | `.dk/r/c/t/c/` | Isolated cache directory for commit-repo-local `dk0` update and staging operations. |
 | `.dk/r/c/t/d/` | Isolated data directory that holds the local valuestore used to create the staged `a*` and `b*` release assets. |
+| `.dk/r/c/.local/` | Local-only binaries like coreutils |
 
 The user's original `dk.u`, `dk0`, `dk0.cmd`, and optional `etc/dk/{d,i,v}`
 remain the source inputs. The copies under `.dk/r/c` are the remote-session

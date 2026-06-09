@@ -462,8 +462,7 @@ function CommonsBase_Remote__GitHub__0_1_0.project_root(request)
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request)
-  local program = ".dk/r/c/t/d/coreutils/coreutils.exe"
-  local slot = "Release." .. tostring(request.execution.ABIv3)
+  local program = ".dk/r/c/.local/coreutils/coreutils.exe"
   local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,
     program,
@@ -473,7 +472,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request)
     CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
       CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request),
-      { "get-object", "CommonsBase_Std.Coreutils@0.6.0", "-s", slot, "-d", ".dk/r/c/t/d/coreutils" })
+      { "get-object", "CommonsBase_Std.Coreutils@0.6.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" })
   end
   return program
 end
@@ -1124,6 +1123,7 @@ function CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitignore_text()
     "t/k/build.sec",
     "t/c/",
     "t/d/",
+    ".local",
     ""
   }, "\n")
 end
