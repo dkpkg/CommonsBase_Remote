@@ -441,28 +441,42 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request)
-  local cmd_file = request.io.open("dk0.cmd", "r")
-  if request.io.isfile(cmd_file) then
-    local cmd_abs = request.io.realpath(cmd_file)
-    request.io.close(cmd_file)
-    return cmd_abs
+function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+  local function try_candidate(path)
+    local file = request.io.open(path, "r")
+    if request.io.isfile(file) then
+      local abs = request.io.realpath(file)
+      request.io.close(file)
+      return abs
+    end
+    request.io.close(file)
+    return nil
   end
-  request.io.close(cmd_file)
-  local sh_file = request.io.open("dk0", "r")
-  if request.io.isfile(sh_file) then
-    local sh_abs = request.io.realpath(sh_file)
-    request.io.close(sh_file)
-    return sh_abs
+  if snapshot_dir then
+    local snapshot_cmd = try_candidate(snapshot_dir .. "/dk0.cmd")
+    if snapshot_cmd then
+      return snapshot_cmd
+    end
+    local snapshot_sh = try_candidate(snapshot_dir .. "/dk0")
+    if snapshot_sh then
+      return snapshot_sh
+    end
   end
-  request.io.close(sh_file)
+  local local_cmd = try_candidate("dk0.cmd")
+  if local_cmd then
+    return local_cmd
+  end
+  local local_sh = try_candidate("dk0")
+  if local_sh then
+    return local_sh
+  end
   if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
     return "dk0.cmd"
   end
   return "./dk0"
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request)
+function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir)
   local program = ".dk/r/c/.local/coreutils/coreutils.exe"
   local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,
@@ -472,7 +486,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request)
   if probe.code ~= "0" then
     CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
-      CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request),
+      CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir),
       { "get-object", "CommonsBase_Std.Coreutils@0.6.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" })
   end
   return program
@@ -1335,7 +1349,7 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   end
   local snapshot_dir = request.continued and request.continued.project_snapshot
   assert(snapshot_dir, "Expected a project snapshot from the submit phase")
-  local coreutils = CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request)
+  local coreutils = CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir)
   local commit_dir = ".dk/r/c"
 
   CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)

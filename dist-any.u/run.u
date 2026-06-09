@@ -40,9 +40,9 @@ The detailed orchestration has three phases:
      key.
    - Run local `dk0 update` inside `.dk/r/c` to materialize the workspace
      inputs needed by the remote command.
-   - Resolve the local `dk0` wrapper by absolute path when invoking it from UI
-     submit code, since the rule runtime cwd may differ from the user project
-     root.
+   - Resolve the local `dk0` wrapper by absolute path from the staged snapshot
+     when invoking it from UI submit code, since the rule runtime cwd may
+     differ from the user project root.
    - Resolve host tools (`git`, `gh`) by probing the requested program first,
      then on Windows falling back to generated wrapper commands that extend
      `PATH` with known install directories when direct lookup fails.
