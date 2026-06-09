@@ -533,6 +533,10 @@ function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_d
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, args)
+  local snapshot_cwd = snapshot_dir
+  if snapshot_dir ~= nil and type(snapshot_dir) ~= "string" then
+    snapshot_cwd = request.io.realpath(snapshot_dir)
+  end
   if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
     local root = CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
     if root ~= "" then
@@ -552,7 +556,7 @@ function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, 
       end
     end
   end
-  if snapshot_dir then
+  if snapshot_cwd then
     local cmd_args = { "/d", "/c", "dk0.cmd" }
     local i = 1
     while args[i] do
@@ -563,7 +567,7 @@ function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, 
       request,
       "cmd",
       cmd_args,
-      { cwd = snapshot_dir, allowfailure = true })
+      { cwd = snapshot_cwd, allowfailure = true })
     if cmd_result.code == "0" then
       return cmd_result
     end
