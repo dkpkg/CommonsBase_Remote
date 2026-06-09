@@ -471,29 +471,79 @@ function CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, dir, nam
   return nil
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
+  local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request,
+    "cmd",
+    { "/d", "/c", "cd" },
+    { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+  if result.code ~= "0" then
+    return ""
+  end
+  return CommonsBase_Remote__GitHub__0_1_0.trim(CommonsBase_Remote__GitHub__0_1_0.first_line(result.stdout))
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.normalize_program(program)
+  local s = tostring(program or "")
+  if s == "" then
+    return s
+  end
+  if string.sub(s, 1, 2) == "./" or string.sub(s, 1, 2) == ".\\" then
+    return s
+  end
+  if string.find(s, "/", 1, true) or string.find(s, "\\", 1, true) or string.find(s, ":", 1, true) then
+    return s
+  end
+  return "./" .. s
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
   if snapshot_dir then
     local snapshot_cmd = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, snapshot_dir, "dk0.cmd")
     if snapshot_cmd then
-      return snapshot_cmd
+      return CommonsBase_Remote__GitHub__0_1_0.normalize_program(snapshot_cmd)
     end
     local snapshot_sh = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, snapshot_dir, "dk0")
     if snapshot_sh then
-      return snapshot_sh
+      return CommonsBase_Remote__GitHub__0_1_0.normalize_program(snapshot_sh)
     end
   end
   local local_cmd = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0.cmd")
   if local_cmd then
-    return local_cmd
+    return CommonsBase_Remote__GitHub__0_1_0.normalize_program(local_cmd)
   end
   local local_sh = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0")
   if local_sh then
-    return local_sh
+    return CommonsBase_Remote__GitHub__0_1_0.normalize_program(local_sh)
   end
   if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-    return "dk0.cmd"
+    local root = CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
+    if root ~= "" then
+      return root .. "\\dk0.cmd"
+    end
+    return "./dk0.cmd"
   end
   return "./dk0"
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, args)
+  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) and snapshot_dir then
+    local cmd_args = { "/d", "/c", "dk0.cmd" }
+    local i = 1
+    while args[i] do
+      table.insert(cmd_args, args[i])
+      i = i + 1
+    end
+    return CommonsBase_Remote__GitHub__0_1_0.capture(
+      request,
+      "cmd",
+      cmd_args,
+      { cwd = snapshot_dir })
+  end
+  return CommonsBase_Remote__GitHub__0_1_0.capture(
+    request,
+    CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir),
+    args)
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir)
@@ -504,9 +554,9 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     { "--version" },
     { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
-    CommonsBase_Remote__GitHub__0_1_0.capture(
+    CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(
       request,
-      CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir),
+      snapshot_dir,
       { "get-object", "CommonsBase_Std.Coreutils@0.6.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" })
   end
   return program
