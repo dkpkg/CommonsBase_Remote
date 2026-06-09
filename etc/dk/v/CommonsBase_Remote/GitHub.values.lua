@@ -441,32 +441,33 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
-  local function try_candidate(path)
-    local file = request.io.open(path, "r")
-    if request.io.isfile(file) then
-      local abs = request.io.realpath(file)
-      request.io.close(file)
-      return abs
-    end
+function CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, path)
+  local file = request.io.open(path, "r")
+  if request.io.isfile(file) then
+    local abs = request.io.realpath(file)
     request.io.close(file)
-    return nil
+    return abs
   end
+  request.io.close(file)
+  return nil
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
   if snapshot_dir then
-    local snapshot_cmd = try_candidate(snapshot_dir .. "/dk0.cmd")
+    local snapshot_cmd = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, snapshot_dir .. "/dk0.cmd")
     if snapshot_cmd then
       return snapshot_cmd
     end
-    local snapshot_sh = try_candidate(snapshot_dir .. "/dk0")
+    local snapshot_sh = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, snapshot_dir .. "/dk0")
     if snapshot_sh then
       return snapshot_sh
     end
   end
-  local local_cmd = try_candidate("dk0.cmd")
+  local local_cmd = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0.cmd")
   if local_cmd then
     return local_cmd
   end
-  local local_sh = try_candidate("dk0")
+  local local_sh = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0")
   if local_sh then
     return local_sh
   end
