@@ -40,6 +40,8 @@ The detailed orchestration has three phases:
      key.
    - Run local `dk0 update` inside `.dk/r/c` to materialize the workspace
      inputs needed by the remote command.
+   - If a retry left `.dk/r/c` dirty, stash that leftover residue before the
+     branch sync step so `git pull --rebase` can proceed on a clean tree.
    - Resolve the local `dk0` wrapper by absolute path from the staged snapshot
      when invoking it from UI submit code, since the rule runtime cwd may
      differ from the user project root.

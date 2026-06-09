@@ -291,6 +291,19 @@ function CommonsBase_Remote__GitHub__0_1_0.show_command(program, args)
   return table.concat(parts, " ")
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options)
+  local envmods = {}
+  if options and options.envmods then
+    local i = 1
+    while options.envmods[i] do
+      envmods[#envmods + 1] = options.envmods[i]
+      i = i + 1
+    end
+  end
+  envmods[#envmods + 1] = "-ZIG_PROGRESS"
+  return envmods
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.capture(request, program, args, options)
   options = options or {}
   local allowfailure = options.allowfailure or options.allow_failure
@@ -298,7 +311,8 @@ function CommonsBase_Remote__GitHub__0_1_0.capture(request, program, args, optio
   local request_options = {
     program = program,
     args = args,
-    max_output_bytes = options.max_output_bytes or 16777211
+    max_output_bytes = options.max_output_bytes or 16777211,
+    envmods = CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options),
   }
   if options.cwd then
     request_options.cwd = options.cwd
@@ -330,7 +344,8 @@ function CommonsBase_Remote__GitHub__0_1_0.spawn(request, program, args, options
   print("+ " .. CommonsBase_Remote__GitHub__0_1_0.show_command(program, args))
   local request_options = {
     program = program,
-    args = args
+    args = args,
+    envmods = CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options)
   }
   if options.cwd then
     request_options.cwd = options.cwd
@@ -418,11 +433,9 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
   local request_options = {
     program = program,
     args = args,
-    max_output_bytes = options.max_output_bytes or 16777211
+    max_output_bytes = options.max_output_bytes or 16777211,
+    envmods = CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options),
   }
-  if options.envmods then
-    request_options.envmods = options.envmods
-  end
   if options.cwd then
     request_options.cwd = options.cwd
   end
@@ -1287,6 +1300,21 @@ function CommonsBase_Remote__GitHub__0_1_0.reset_commit_repo_worktree(request, c
     { quiet = true, allowfailure = true })
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.stash_commit_repo_changes(request, commit_dir, p)
+  local status = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request,
+    p.git,
+    { "-C", commit_dir, "status", "--porcelain=v1", "--untracked-files=all" },
+    { quiet = true, allowfailure = true })
+  if CommonsBase_Remote__GitHub__0_1_0.trim(status.stdout) == "" then
+    return
+  end
+  CommonsBase_Remote__GitHub__0_1_0.capture(
+    request,
+    p.git,
+    { "-C", commit_dir, "stash", "push", "--all", "--message", "dk remote pre-sync" })
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.ensure_branches(request, commit_dir, sessions, p)
   CommonsBase_Remote__GitHub__0_1_0.reset_commit_repo_worktree(request, commit_dir, p)
   local has_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
@@ -1439,6 +1467,7 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   CommonsBase_Remote__GitHub__0_1_0.ensure_control_tree(request, coreutils)
   CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
   CommonsBase_Remote__GitHub__0_1_0.ensure_branches(request, commit_dir, p.sessions, p)
+  CommonsBase_Remote__GitHub__0_1_0.stash_commit_repo_changes(request, commit_dir, p)
 
   local selected = CommonsBase_Remote__GitHub__0_1_0.select_session(request, ownerrepo, p.sessions, p)
   local branch = "dk-session-" .. tostring(selected)
