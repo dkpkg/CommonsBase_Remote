@@ -569,7 +569,8 @@ function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, 
   return CommonsBase_Remote__GitHub__0_1_0.capture(
     request,
     local_program,
-    args)
+    args,
+    { cwd = "." })
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir)
@@ -585,7 +586,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
       snapshot_dir,
       { "get-object", "CommonsBase_Std.Coreutils@0.8.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" })
   end
-  return request.io.realpath(program)
+  return program
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(path)
