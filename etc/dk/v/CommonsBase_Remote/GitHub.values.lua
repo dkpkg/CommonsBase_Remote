@@ -581,10 +581,16 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     { "--version" },
     { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
-    CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(
+    local bootstrap_root = request.io.realpath(snapshot_dir)
+    local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+    CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
-      snapshot_dir,
-      { "get-object", "CommonsBase_Std.Coreutils@0.8.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" })
+      local_program,
+      { "get-object", "CommonsBase_Std.Coreutils@0.8.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" },
+      { cwd = bootstrap_root })
+    return CommonsBase_Remote__GitHub__0_1_0.path_join(
+      bootstrap_root,
+      CommonsBase_Remote__GitHub__0_1_0.windows_relpath(program))
   end
   return program
 end
