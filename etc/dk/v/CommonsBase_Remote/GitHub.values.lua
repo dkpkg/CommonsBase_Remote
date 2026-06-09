@@ -296,11 +296,11 @@ function CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options)
   if options and options.envmods then
     local i = 1
     while options.envmods[i] do
-      envmods[#envmods + 1] = options.envmods[i]
+      table.insert(envmods, options.envmods[i])
       i = i + 1
     end
   end
-  envmods[#envmods + 1] = "-ZIG_PROGRESS"
+  table.insert(envmods, "-ZIG_PROGRESS")
   return envmods
 end
 
