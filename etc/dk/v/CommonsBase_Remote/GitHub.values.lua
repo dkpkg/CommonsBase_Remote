@@ -1232,12 +1232,22 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
-  local repo_ok = CommonsBase_Remote__GitHub__0_1_0.try_capture(
-    request,
-    p.git,
-    { "-C", commit_dir, "rev-parse", "--git-dir" },
-    { quiet = true, allowfailure = true })
-  if repo_ok.code ~= "0" then
+  local commit_git_dir = commit_dir .. "/.git"
+  local repo_ok = request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir)
+  if repo_ok then
+    local expected_root = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(request.io.realpath(commit_dir))
+    local actual_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+      request,
+      p.git,
+      { "-C", commit_dir, "rev-parse", "--show-toplevel" },
+      { quiet = true, allowfailure = true })
+    local actual_root_text = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
+      CommonsBase_Remote__GitHub__0_1_0.trim(actual_root.stdout or ""))
+    if actual_root.code ~= "0" or actual_root_text ~= expected_root then
+      repo_ok = false
+    end
+  end
+  if not repo_ok then
     CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "init", commit_dir })
   end
   local add_origin = CommonsBase_Remote__GitHub__0_1_0.try_capture(
