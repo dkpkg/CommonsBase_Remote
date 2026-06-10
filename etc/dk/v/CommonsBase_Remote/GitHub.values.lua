@@ -1321,11 +1321,6 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo
     request,
     p.git,
     { "-C", commit_dir, "init" })
-  commit_dir = request.io.realpath(commit_dir)
-  if not commit_dir then
-    error(
-      "Expected `.dk/r/c` to resolve after `git init`")
-  end
   local add_origin = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,
     p.git,
