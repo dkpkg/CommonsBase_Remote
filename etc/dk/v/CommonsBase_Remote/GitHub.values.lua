@@ -86,6 +86,7 @@ function CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
   assert(next(p.argv) ~= nil, "Expected at least one `argv[]=...` entry")
   p.requested_trace_key_id = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.requested_trace_key_id)
   p.requested_trace_key_description = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.requested_trace_key_description)
+  p.project_root = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.project_root) or ""
   p.gh = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.gh) or "gh"
   p.git = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.git) or "git"
   return p
@@ -594,7 +595,10 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     local bootstrap_root = request.io.realpath(snapshot_dir)
     local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
     local import_dir = "etc/dk/i"
-    local project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+    local project_root = request.user.project_root or ""
+    if project_root == "" then
+      project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+    end
     if project_root ~= "" then
       if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
         import_dir = project_root .. "\\etc\\dk\\i"
