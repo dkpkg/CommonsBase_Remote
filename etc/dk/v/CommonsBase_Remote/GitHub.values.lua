@@ -593,12 +593,21 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
   if probe.code ~= "0" then
     local bootstrap_root = request.io.realpath(snapshot_dir)
     local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+    local import_dir = "etc/dk/i"
+    local project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+    if project_root ~= "" then
+      if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+        import_dir = project_root .. "\\etc\\dk\\i"
+      else
+        import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
+      end
+    end
     CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
       local_program,
       {
         "--trust-local-package", "CommonsBase_Std",
-        "-I", "etc/dk/i",
+        "-I", import_dir,
         "get-object", "CommonsBase_Std.Coreutils@0.8.0",
         "-s", "Release.execution_abi",
         "-d", ".dk/r/c/.local/coreutils"
