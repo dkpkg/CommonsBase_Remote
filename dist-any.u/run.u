@@ -16,6 +16,25 @@ directory `.dk/r/c` with commands such as `git -C .dk/r/c fetch`,
 `git -C .dk/r/c add`, and `git -C .dk/r/c push`. The user's project may have a
 different git remote, or may not be a git checkout at all.
 
+## Consumer validation workflow
+
+When validating GitHub remote behavior from another project, do not point `dk0`
+at an unreleased local checkout with an ad hoc include path like
+`-I some/source/CommonsBase_Remote/etc/dk/v`. The reviewed workflow is:
+
+1. (Diskuv owns this step) Release `CommonsBase_Remote` from its package repository with the normal
+   commit, tag, push, and GitHub release flow.
+2. In the consumer project, import that released package with:
+
+   ```text
+   ./dk0 add github-l2 dkpkg/CommonsBase_Remote
+   ```
+
+3. Run the consumer's `dk0 remote ...` smoke against the imported release.
+
+That keeps the validation path aligned with how end users consume the GitHub
+remote package.
+
 The detailed orchestration has three phases:
 
 1. **Bootstrap and local staging**
@@ -42,9 +61,17 @@ The detailed orchestration has three phases:
      inputs needed by the remote command.
    - If a retry left `.dk/r/c` dirty, stash that leftover residue before the
      branch sync step so `git pull --rebase` can proceed on a clean tree.
+   - If `.dk/r/c/.git` exists but points at some other repository root, delete
+     that stray git metadata and reinitialize `.dk/r/c` before any remote,
+     branch, or config command runs. Only `.dk/r/c` may have its git remote or
+     session branches changed by this rule.
    - Resolve the local `dk0` wrapper by absolute path from the staged snapshot
      when invoking it from UI submit code, since the rule runtime cwd may
      differ from the user project root.
+   - When the local submit-side bootstrap needs `CommonsBase_Std.Coreutils`,
+     invoke the staged snapshot `dk0` wrapper while pointing `-I` at the live
+     project `etc/dk/i` directory so imported package metadata stays visible
+     before `.dk/r/c/etc/dk/i` has been fully materialized.
    - Resolve host tools (`git`, `gh`) by probing the requested program first,
      then on Windows falling back to generated wrapper commands that extend
      `PATH` with known install directories when direct lookup fails.

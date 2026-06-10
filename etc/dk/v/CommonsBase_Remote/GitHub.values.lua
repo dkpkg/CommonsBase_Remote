@@ -516,6 +516,16 @@ function CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
   return CommonsBase_Remote__GitHub__0_1_0.project_root_sh(request)
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.live_import_dir(request)
+  local dir = request.io.open("etc/dk/i", "r")
+  if not dir then
+    return ""
+  end
+  local abs = request.io.realpath(dir)
+  request.io.close(dir)
+  return abs or ""
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.normalize_program(program)
   local s = tostring(program or "")
   if s == "" then
@@ -588,7 +598,7 @@ function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, 
     { cwd = "." })
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir)
+function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir, p)
   local program = ".dk/r/c/.local/coreutils/coreutils.exe"
   local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,
@@ -599,15 +609,20 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     local bootstrap_root = request.io.realpath(snapshot_dir)
     local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
     local import_dir = "etc/dk/i"
-    local project_root = p.project_root or ""
-    if project_root == "" then
-      project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
-    end
-    if project_root ~= "" then
-      if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-        import_dir = project_root .. "\\etc\\dk\\i"
-      else
-        import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
+    local live_import_dir = CommonsBase_Remote__GitHub__0_1_0.live_import_dir(request)
+    if live_import_dir ~= "" then
+      import_dir = live_import_dir
+    else
+      local project_root = p.project_root or ""
+      if project_root == "" then
+        project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+      end
+      if project_root ~= "" then
+        if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+          import_dir = project_root .. "\\etc\\dk\\i"
+        else
+          import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
+        end
       end
     end
     CommonsBase_Remote__GitHub__0_1_0.capture(
@@ -1290,7 +1305,20 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo
     end
   end
   if not repo_ok then
-    CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "init", commit_dir })
+    if request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir) then
+      CommonsBase_Remote__GitHub__0_1_0.spawn(
+        request,
+        coreutils,
+        { "rm", "-rf", commit_git_dir })
+    end
+    CommonsBase_Remote__GitHub__0_1_0.spawn(
+      request,
+      coreutils,
+      { "mkdir", "-p", commit_dir })
+    CommonsBase_Remote__GitHub__0_1_0.capture(
+      request,
+      p.git,
+      { "-C", commit_dir, "init", "." })
   end
   local add_origin = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,
@@ -1512,7 +1540,7 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   end
   local snapshot_dir = request.continued and request.continued.project_snapshot
   assert(snapshot_dir, "Expected a project snapshot from the submit phase")
-  local coreutils = CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir)
+  local coreutils = CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir, p)
   local commit_dir = ".dk/r/c"
 
   CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)
@@ -1730,6 +1758,13 @@ function uirules.Run(command, request, continue_)
         },
         excludes = { ".dk/**", ".git", ".git/**", "_build/**", "remote-github/**", "dk-session-results-*/**" }
       }
+      local submit_strings = {
+        create_repo = p.create_repo and "true" or "false",
+        dry_run = p.dryrun and "true" or "false"
+      }
+      if p.project_root ~= "" then
+        submit_strings.project_root = p.project_root
+      end
       return {
         submit = {
           values = {
@@ -1740,11 +1775,7 @@ function uirules.Run(command, request, continue_)
             directories = {
               project_snapshot = "$(" .. getbundle .. " -d :)"
             },
-            strings = {
-              create_repo = p.create_repo and "true" or "false",
-              dry_run = p.dryrun and "true" or "false",
-              project_root = p.project_root
-            }
+            strings = submit_strings
           },
           andthen = {
             continue_ = {
