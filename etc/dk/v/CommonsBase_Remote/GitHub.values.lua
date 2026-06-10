@@ -455,7 +455,10 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, path)
-  local file = request.io.open(path, "r")
+  local ok, file = pcall(request.io.open, path, "r")
+  if not ok then
+    return nil
+  end
   if request.io.isfile(file) then
     local abs = request.io.realpath(file)
     request.io.close(file)
