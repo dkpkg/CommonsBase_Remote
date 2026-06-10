@@ -1309,6 +1309,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo
   local commit_git_dir = commit_dir .. "/.git"
   local repo_ok = CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
     request, commit_dir, p)
+  local reinitialized = false
   if not repo_ok then
     if request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir) then
       CommonsBase_Remote__GitHub__0_1_0.spawn(
@@ -1324,10 +1325,18 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo
       request,
       p.git,
       { "-C", commit_dir, "init" })
+    reinitialized = true
   end
   local isolated, actual_root =
     CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
       request, commit_dir, p)
+  if (not isolated)
+    and reinitialized
+    and request.io.isdir(commit_git_dir) then
+    actual_root = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
+      request.io.realpath(commit_dir))
+    isolated = true
+  end
   if not isolated then
     error(
       "Expected `" .. commit_dir .. "` to be an isolated git repository but git resolved to `" ..
