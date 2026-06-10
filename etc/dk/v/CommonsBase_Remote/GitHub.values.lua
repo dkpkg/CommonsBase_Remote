@@ -454,20 +454,6 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, path)
-  local ok, file = pcall(request.io.open, path, "r")
-  if not ok then
-    return nil
-  end
-  if request.io.isfile(file) then
-    local abs = request.io.realpath(file)
-    request.io.close(file)
-    return abs
-  end
-  request.io.close(file)
-  return nil
-end
-
 function CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, dir, name)
   local entries = request.io.list(dir, "all")
   local i = 1
@@ -505,6 +491,26 @@ function CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
   return CommonsBase_Remote__GitHub__0_1_0.trim(CommonsBase_Remote__GitHub__0_1_0.first_line(result.stdout))
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.project_root_sh(request)
+  local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request,
+    "pwd",
+    {},
+    { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+  if result.code ~= "0" then
+    return ""
+  end
+  return CommonsBase_Remote__GitHub__0_1_0.trim(
+    CommonsBase_Remote__GitHub__0_1_0.first_line(result.stdout))
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+    return CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
+  end
+  return CommonsBase_Remote__GitHub__0_1_0.project_root_sh(request)
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.normalize_program(program)
   local s = tostring(program or "")
   if s == "" then
@@ -530,20 +536,12 @@ function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_d
       return CommonsBase_Remote__GitHub__0_1_0.normalize_program(snapshot_sh)
     end
   end
-  local local_cmd = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0.cmd")
-  if local_cmd then
-    return CommonsBase_Remote__GitHub__0_1_0.normalize_program(local_cmd)
-  end
-  local local_sh = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0")
-  if local_sh then
-    return CommonsBase_Remote__GitHub__0_1_0.normalize_program(local_sh)
-  end
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-    local root = CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
-    if root ~= "" then
+  local root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+  if root ~= "" then
+    if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
       return root .. "\\dk0.cmd"
     end
-    return "./dk0.cmd"
+    return CommonsBase_Remote__GitHub__0_1_0.path_join(root, "dk0")
   end
   return "./dk0"
 end
@@ -584,15 +582,29 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     { "--version" },
     { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
-    local bootstrap_root = "."
-    local local_program = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0.cmd")
-    if not local_program then
-      local_program = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0")
+    local bootstrap_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+    if bootstrap_root ~= "" then
+      local live_program =
+        CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, nil)
+      local bootstrap = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+        request,
+        live_program,
+        {
+          "--trust-local-package", "CommonsBase_Std",
+          "-I", "etc/dk/i",
+          "get-object", "CommonsBase_Std.Coreutils@0.8.0",
+          "-s", "Release.execution_abi",
+          "-d", ".dk/r/c/.local/coreutils"
+        },
+        { cwd = bootstrap_root, allowfailure = true })
+      if bootstrap.code == "0" then
+        return CommonsBase_Remote__GitHub__0_1_0.path_join(
+          bootstrap_root,
+          CommonsBase_Remote__GitHub__0_1_0.windows_relpath(program))
+      end
     end
-    if not local_program then
-      bootstrap_root = request.io.realpath(snapshot_dir)
-      local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
-    end
+    bootstrap_root = request.io.realpath(snapshot_dir)
+    local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
     CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
       local_program,
