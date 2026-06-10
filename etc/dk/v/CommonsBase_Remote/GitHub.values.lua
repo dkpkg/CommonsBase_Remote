@@ -1273,22 +1273,35 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)
   assert(view.code == "0", "Repository " .. ownerrepo .. " does not exist or is not visible; rerun with create_repo=true to create a private repository")
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.commit_repo_root(request, commit_dir, p)
+  local actual_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request,
+    p.git,
+    { "-C", commit_dir, "rev-parse", "--show-toplevel" },
+    { quiet = true, allowfailure = true })
+  if actual_root.code ~= "0" then
+    return nil
+  end
+  return CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
+    CommonsBase_Remote__GitHub__0_1_0.trim(actual_root.stdout or ""))
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(request, commit_dir, p)
+  local commit_git_dir = commit_dir .. "/.git"
+  if not (request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir)) then
+    return false, nil
+  end
+  local expected_root = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
+    request.io.realpath(commit_dir))
+  local actual_root =
+    CommonsBase_Remote__GitHub__0_1_0.commit_repo_root(request, commit_dir, p)
+  return actual_root == expected_root, actual_root
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
   local commit_git_dir = commit_dir .. "/.git"
-  local repo_ok = request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir)
-  if repo_ok then
-    local expected_root = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(request.io.realpath(commit_dir))
-    local actual_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
-      request,
-      p.git,
-      { "-C", commit_dir, "rev-parse", "--show-toplevel" },
-      { quiet = true, allowfailure = true })
-    local actual_root_text = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
-      CommonsBase_Remote__GitHub__0_1_0.trim(actual_root.stdout or ""))
-    if actual_root.code ~= "0" or actual_root_text ~= expected_root then
-      repo_ok = false
-    end
-  end
+  local repo_ok = CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
+    request, commit_dir, p)
   if not repo_ok then
     if request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir) then
       CommonsBase_Remote__GitHub__0_1_0.spawn(
@@ -1303,7 +1316,15 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo
     CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
       p.git,
-      { "-C", commit_dir, "init", "." })
+      { "-C", commit_dir, "init" })
+  end
+  local isolated, actual_root =
+    CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
+      request, commit_dir, p)
+  if not isolated then
+    error(
+      "Expected `" .. commit_dir .. "` to be an isolated git repository but git resolved to `" ..
+      tostring(actual_root or "<none>") .. "`")
   end
   local add_origin = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,

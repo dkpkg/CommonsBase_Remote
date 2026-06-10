@@ -63,8 +63,10 @@ The detailed orchestration has three phases:
      branch sync step so `git pull --rebase` can proceed on a clean tree.
    - If `.dk/r/c/.git` exists but points at some other repository root, delete
      that stray git metadata and reinitialize `.dk/r/c` before any remote,
-     branch, or config command runs. Only `.dk/r/c` may have its git remote or
-     session branches changed by this rule.
+     branch, or config command runs. If `.dk/r/c` has no `.git`, the rule must
+     initialize one there and verify `git -C .dk/r/c rev-parse --show-toplevel`
+     resolves to `.dk/r/c` itself before continuing. Only `.dk/r/c` may have
+     its git remote or session branches changed by this rule.
    - Resolve the local `dk0` wrapper by absolute path from the staged snapshot
      when invoking it from UI submit code, since the rule runtime cwd may
      differ from the user project root.
