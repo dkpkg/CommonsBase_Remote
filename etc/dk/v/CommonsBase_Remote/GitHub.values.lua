@@ -1274,16 +1274,23 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.commit_repo_root(request, commit_dir, p)
-  local actual_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
-    request,
-    p.git,
-    { "-C", commit_dir, "rev-parse", "--show-toplevel" },
-    { quiet = true, allowfailure = true })
-  if actual_root.code ~= "0" then
-    return nil
+  local attempt = 1
+  while attempt <= 3 do
+    local actual_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+      request,
+      p.git,
+      { "-C", commit_dir, "rev-parse", "--show-toplevel" },
+      { quiet = true, allowfailure = true })
+    if actual_root.code == "0" then
+      return CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
+        CommonsBase_Remote__GitHub__0_1_0.trim(actual_root.stdout or ""))
+    end
+    if attempt < 3 then
+      request.ui.sleep { seconds = 1 }
+    end
+    attempt = attempt + 1
   end
-  return CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
-    CommonsBase_Remote__GitHub__0_1_0.trim(actual_root.stdout or ""))
+  return nil
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(request, commit_dir, p)
