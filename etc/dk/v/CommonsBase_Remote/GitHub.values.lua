@@ -547,6 +547,15 @@ function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_d
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, args)
+  if snapshot_dir then
+    local snapshot_root = request.io.realpath(snapshot_dir)
+    local snapshot_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+    return CommonsBase_Remote__GitHub__0_1_0.capture(
+      request,
+      snapshot_program,
+      args,
+      { cwd = snapshot_root })
+  end
   if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
     local root = CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
     if root ~= "" then
@@ -582,28 +591,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     { "--version" },
     { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
-    local bootstrap_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
-    if bootstrap_root ~= "" then
-      local live_program =
-        CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, nil)
-      local bootstrap = CommonsBase_Remote__GitHub__0_1_0.try_capture(
-        request,
-        live_program,
-        {
-          "--trust-local-package", "CommonsBase_Std",
-          "-I", "etc/dk/i",
-          "get-object", "CommonsBase_Std.Coreutils@0.8.0",
-          "-s", "Release.execution_abi",
-          "-d", ".dk/r/c/.local/coreutils"
-        },
-        { cwd = bootstrap_root, allowfailure = true })
-      if bootstrap.code == "0" then
-        return CommonsBase_Remote__GitHub__0_1_0.path_join(
-          bootstrap_root,
-          CommonsBase_Remote__GitHub__0_1_0.windows_relpath(program))
-      end
-    end
-    bootstrap_root = request.io.realpath(snapshot_dir)
+    local bootstrap_root = request.io.realpath(snapshot_dir)
     local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
     CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
@@ -618,7 +606,9 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
       { cwd = bootstrap_root })
     return CommonsBase_Remote__GitHub__0_1_0.path_join(
       bootstrap_root,
-      CommonsBase_Remote__GitHub__0_1_0.windows_relpath(program))
+      CommonsBase_Remote__GitHub__0_1_0.is_windows(request)
+        and CommonsBase_Remote__GitHub__0_1_0.windows_relpath(program)
+        or CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(program))
   end
   return program
 end
