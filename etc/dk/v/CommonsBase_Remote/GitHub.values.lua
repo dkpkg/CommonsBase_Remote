@@ -516,16 +516,6 @@ function CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
   return CommonsBase_Remote__GitHub__0_1_0.project_root_sh(request)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.live_import_dir(request)
-  local dir = request.io.open("etc/dk/i", "r")
-  if not dir then
-    return ""
-  end
-  local abs = request.io.realpath(dir)
-  request.io.close(dir)
-  return abs or ""
-end
-
 function CommonsBase_Remote__GitHub__0_1_0.normalize_program(program)
   local s = tostring(program or "")
   if s == "" then
@@ -609,20 +599,15 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     local bootstrap_root = request.io.realpath(snapshot_dir)
     local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
     local import_dir = "etc/dk/i"
-    local live_import_dir = CommonsBase_Remote__GitHub__0_1_0.live_import_dir(request)
-    if live_import_dir ~= "" then
-      import_dir = live_import_dir
-    else
-      local project_root = p.project_root or ""
-      if project_root == "" then
-        project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
-      end
-      if project_root ~= "" then
-        if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-          import_dir = project_root .. "\\etc\\dk\\i"
-        else
-          import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
-        end
+    local project_root = p.project_root or ""
+    if project_root == "" then
+      project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+    end
+    if project_root ~= "" then
+      if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+        import_dir = project_root .. "\\etc\\dk\\i"
+      else
+        import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
       end
     end
     CommonsBase_Remote__GitHub__0_1_0.capture(
