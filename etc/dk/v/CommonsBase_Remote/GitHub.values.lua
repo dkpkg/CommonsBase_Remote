@@ -1327,19 +1327,22 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo
       { "-C", commit_dir, "init" })
     reinitialized = true
   end
-  local isolated, actual_root =
-    CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
-      request, commit_dir, p)
-  if (not isolated)
-    and reinitialized then
-    actual_root = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
-      request.io.realpath(commit_dir))
-    isolated = true
+  if not reinitialized then
+    local isolated, actual_root =
+      CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
+        request, commit_dir, p)
+    if not isolated then
+      error(
+        "Expected `" .. commit_dir .. "` to be an isolated git repository but git resolved to `" ..
+        tostring(actual_root or "<none>") .. "`")
+    end
   end
-  if not isolated then
+  if reinitialized then
+    commit_dir = request.io.realpath(commit_dir)
+  end
+  if not commit_dir then
     error(
-      "Expected `" .. commit_dir .. "` to be an isolated git repository but git resolved to `" ..
-      tostring(actual_root or "<none>") .. "`")
+      "Expected `" .. tostring(commit_dir) .. "` to resolve after `git init`")
   end
   local add_origin = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,

@@ -66,9 +66,9 @@ The detailed orchestration has three phases:
      branch, or config command runs. If `.dk/r/c` has no `.git`, the rule must
      initialize one there and verify `git -C .dk/r/c rev-parse --show-toplevel`
      resolves to `.dk/r/c` itself before continuing, retrying briefly after a
-     fresh init if Git has not yet made that toplevel visible. If the immediate
-     probe still returns nothing after a fresh `git init`, treat that successful
-     init of `.dk/r/c` itself as the isolation anchor and continue.
+     fresh init if Git has not yet made that toplevel visible. After a fresh
+     `git init` of `.dk/r/c`, continue from that newly initialized repository
+     instead of failing on an immediate repeat probe.
      Only `.dk/r/c` may have its git remote or session branches changed by this
      rule.
    - Resolve the local `dk0` wrapper by absolute path from the staged snapshot
