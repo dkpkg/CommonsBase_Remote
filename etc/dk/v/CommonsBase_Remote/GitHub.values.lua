@@ -581,12 +581,25 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
     { "--version" },
     { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
-    local bootstrap_root = request.io.realpath(snapshot_dir)
-    local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+    local bootstrap_root = "."
+    local local_program = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0.cmd")
+    if not local_program then
+      local_program = CommonsBase_Remote__GitHub__0_1_0.try_file_abs(request, "dk0")
+    end
+    if not local_program then
+      bootstrap_root = request.io.realpath(snapshot_dir)
+      local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+    end
     CommonsBase_Remote__GitHub__0_1_0.capture(
       request,
       local_program,
-      { "get-object", "CommonsBase_Std.Coreutils@0.8.0", "-s", "Release.execution_abi", "-d", ".dk/r/c/.local/coreutils" },
+      {
+        "--trust-local-package", "CommonsBase_Std",
+        "-I", "etc/dk/i",
+        "get-object", "CommonsBase_Std.Coreutils@0.8.0",
+        "-s", "Release.execution_abi",
+        "-d", ".dk/r/c/.local/coreutils"
+      },
       { cwd = bootstrap_root })
     return CommonsBase_Remote__GitHub__0_1_0.path_join(
       bootstrap_root,
