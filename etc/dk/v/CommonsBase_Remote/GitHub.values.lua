@@ -1331,8 +1331,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo
     CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
       request, commit_dir, p)
   if (not isolated)
-    and reinitialized
-    and request.io.isdir(commit_git_dir) then
+    and reinitialized then
     actual_root = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
       request.io.realpath(commit_dir))
     isolated = true

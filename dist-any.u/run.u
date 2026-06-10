@@ -67,8 +67,8 @@ The detailed orchestration has three phases:
      initialize one there and verify `git -C .dk/r/c rev-parse --show-toplevel`
      resolves to `.dk/r/c` itself before continuing, retrying briefly after a
      fresh init if Git has not yet made that toplevel visible. If the immediate
-     probe still returns nothing after a fresh `git init`, treat the new
-     `.dk/r/c/.git` directory itself as the isolation anchor and continue.
+     probe still returns nothing after a fresh `git init`, treat that successful
+     init of `.dk/r/c` itself as the isolation anchor and continue.
      Only `.dk/r/c` may have its git remote or session branches changed by this
      rule.
    - Resolve the local `dk0` wrapper by absolute path from the staged snapshot
