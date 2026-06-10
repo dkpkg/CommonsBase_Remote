@@ -1307,42 +1307,24 @@ end
 
 function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
   local commit_git_dir = commit_dir .. "/.git"
-  local repo_ok = CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
-    request, commit_dir, p)
-  local reinitialized = false
-  if not repo_ok then
-    if request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir) then
-      CommonsBase_Remote__GitHub__0_1_0.spawn(
-        request,
-        coreutils,
-        { "rm", "-rf", commit_git_dir })
-    end
+  if request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir) then
     CommonsBase_Remote__GitHub__0_1_0.spawn(
       request,
       coreutils,
-      { "mkdir", "-p", commit_dir })
-    CommonsBase_Remote__GitHub__0_1_0.capture(
-      request,
-      p.git,
-      { "-C", commit_dir, "init" })
-    reinitialized = true
+      { "rm", "-rf", commit_git_dir })
   end
-  if not reinitialized then
-    local isolated, actual_root =
-      CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(
-        request, commit_dir, p)
-    if not isolated then
-      error(
-        "Expected `" .. commit_dir .. "` to be an isolated git repository but git resolved to `" ..
-        tostring(actual_root or "<none>") .. "`")
-    end
-  end
-  if reinitialized then
-    commit_dir = request.io.realpath(commit_dir)
-  end
+  CommonsBase_Remote__GitHub__0_1_0.spawn(
+    request,
+    coreutils,
+    { "mkdir", "-p", commit_dir })
+  CommonsBase_Remote__GitHub__0_1_0.capture(
+    request,
+    p.git,
+    { "-C", commit_dir, "init" })
+  commit_dir = request.io.realpath(commit_dir)
   if not commit_dir then
     error(
-      "Expected `" .. tostring(commit_dir) .. "` to resolve after `git init`")
+      "Expected `.dk/r/c` to resolve after `git init`")
   end
   local add_origin = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,

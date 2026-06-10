@@ -61,14 +61,11 @@ The detailed orchestration has three phases:
      inputs needed by the remote command.
    - If a retry left `.dk/r/c` dirty, stash that leftover residue before the
      branch sync step so `git pull --rebase` can proceed on a clean tree.
-   - If `.dk/r/c/.git` exists but points at some other repository root, delete
-     that stray git metadata and reinitialize `.dk/r/c` before any remote,
-     branch, or config command runs. If `.dk/r/c` has no `.git`, the rule must
-     initialize one there and verify `git -C .dk/r/c rev-parse --show-toplevel`
-     resolves to `.dk/r/c` itself before continuing, retrying briefly after a
-     fresh init if Git has not yet made that toplevel visible. After a fresh
-     `git init` of `.dk/r/c`, continue from that newly initialized repository
-     instead of failing on an immediate repeat probe.
+   - Rebuild `.dk/r/c/.git` at the start of each submit attempt: if stale git
+     metadata exists, delete it, then run `git -C .dk/r/c init` and continue
+     from that freshly initialized repository. This avoids falling back into the
+     outer consumer repository when UI-runtime filesystem probes lag behind the
+     just-created `.git` directory.
      Only `.dk/r/c` may have its git remote or session branches changed by this
      rule.
    - Resolve the local `dk0` wrapper by absolute path from the staged snapshot
