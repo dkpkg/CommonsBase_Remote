@@ -103,13 +103,22 @@ The detailed orchestration has three phases:
      files, the signed `INDEX`, the committed signify verify public key, and the
      workflow file.
    - Tag and push `0.1.<TS>-exec`.
-   - GitHub Actions verifies `INDEX.sig`, validates the encrypted stage assets
-     against `INDEX`, decrypts them with `DK_SESSION_KEY`, runs the requested
-     value command or `test`/`lua`/`run` command, packages outputs and traces,
-     and creates the exec prerelease.
-   - The local orchestrator polls for the exec prerelease, downloads the result
-     artifacts, verifies them, and presents the final object, asset, output, or
-     displayable result like the existing local value commands do.
+   - GitHub Actions verifies `INDEX.sig` and the `INDEX` checksums with the
+     committed signify public key, then removes that public key (the matching
+     secret is never shipped) so the runner's `dk0` generates its own ephemeral
+     build keypair, runs the requested value command or `test`/`lua`/`run`
+     command, and writes a single combined result file `dk-session-result.txt`
+     (the remote exit code plus delimited stdout/stderr — one always-non-empty
+     file, because GitHub cannot upload zero-byte release assets). It uploads
+     that file to the exec prerelease.
+   - The local orchestrator waits for the exec workflow run matching the pushed
+     commit (`headSha`), downloads `dk-session-result.txt`, prints the remote
+     stdout/stderr, and propagates the remote exit code.
+   - NOTE: encrypting and staging local `a*`/`b*` valuestore assets for the
+     runner (so remote `get-asset`/`run-object`/`get-bundle` of local assets can
+     resolve their content) is the planned Age-encryption layer and is not yet
+     implemented; commands that need only the committed workspace (e.g. `lua`,
+     `test`) work today.
 
 ### Files needed in the project tree
 

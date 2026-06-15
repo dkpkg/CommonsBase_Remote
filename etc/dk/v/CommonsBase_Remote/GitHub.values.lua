@@ -7,6 +7,14 @@ local M = {
 -- So a should-be-unique global is used instead.
 CommonsBase_Remote__GitHub__0_1_0 = {}
 
+-- lua-ml implements an old Lua dialect with no boolean literals: a bare `true`
+-- is an undefined global (nil/falsy) and `false` likewise. This silently breaks
+-- `while true do` loops and `flag = true` assignments. Define them so the rest
+-- of this rule can use standard `true`/`false` semantics. (Harmless if a future
+-- dk0 provides real booleans -- this just re-affirms truthy/falsy values.)
+true = 1
+false = nil
+
 rules, uirules = build.newrules(M)
 
 function CommonsBase_Remote__GitHub__0_1_0.parse_positive_int(name, value, default)
@@ -207,10 +215,16 @@ function CommonsBase_Remote__GitHub__0_1_0.base64_encode(s)
   local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   local out = {}
   local i = 1
-  while i <= string.len(s) do
+  local s_len = string.len(s)
+  while i <= s_len do
+    -- TEMPORARY guard: older public dk0 releases raise "index out of bounds"
+    -- from string.byte past the end of a string instead of returning nil
+    -- (fixed in dksdk-coder "Fix Lua string.byte to return nil ..."). Until
+    -- that fix ships in the minimum supported public dk0, only read in range.
+    -- Remove these `(i + N <= s_len) and` guards once that dk0 is required.
     local b1 = string.byte(s, i) or 0
-    local b2 = string.byte(s, i + 1) or 0
-    local b3 = string.byte(s, i + 2) or 0
+    local b2 = (i + 1 <= s_len) and (string.byte(s, i + 1) or 0) or 0
+    local b3 = (i + 2 <= s_len) and (string.byte(s, i + 2) or 0) or 0
     local n = b1 * 65536 + b2 * 256 + b3
     local c1 = math.floor(n / 262144) % 64 + 1
     local c2 = math.floor(n / 4096) % 64 + 1
@@ -532,14 +546,16 @@ end
 
 function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
   if snapshot_dir then
-    local snapshot_cmd = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, snapshot_dir, "dk0.cmd")
-    if snapshot_cmd then
-      return CommonsBase_Remote__GitHub__0_1_0.normalize_program(snapshot_cmd)
+    -- dk0/dk0.cmd live at the snapshot root, so build the path directly from
+    -- realpath(). Do NOT walk the snapshot here: request.io.list on a read-only
+    -- directory handle is single-use (a second list returns nothing), and
+    -- copy_project_dir_to_commit must do that one walk to stage the inputs.
+    local root = request.io.realpath(snapshot_dir)
+    if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+      return CommonsBase_Remote__GitHub__0_1_0.normalize_program(root .. "\\dk0.cmd")
     end
-    local snapshot_sh = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, snapshot_dir, "dk0")
-    if snapshot_sh then
-      return CommonsBase_Remote__GitHub__0_1_0.normalize_program(snapshot_sh)
-    end
+    return CommonsBase_Remote__GitHub__0_1_0.normalize_program(
+      CommonsBase_Remote__GitHub__0_1_0.path_join(root, "dk0"))
   end
   local root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
   if root ~= "" then
@@ -805,24 +821,30 @@ function CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, d
         rel = "dk0.cmd"
         dest_rel = ".dk/r/c/dk0.cmd"
         seen.dk0cmd = true
-      elseif CommonsBase_Remote__GitHub__0_1_0.ends_with(source_rel, "/t/k/build.sec") then
+      elseif source_name == "build.sec" then
+        -- Match by basename like dk0/dk.u above: the snapshot-relative path may
+        -- be project-root-relative ("t/k/build.sec") with no leading slash, so a
+        -- "/t/k/build.sec" suffix match would miss it. build.sec is local-only,
+        -- so it is copied (for commit-repo dk0 ops) but never tracked in `copied`.
         dest_rel = ".dk/r/c/t/k/build.sec"
         seen.buildsec = true
-      elseif CommonsBase_Remote__GitHub__0_1_0.ends_with(source_rel, "/t/k/build.pub") then
+      elseif source_name == "build.pub" then
         rel = "t/k/build.pub"
         dest_rel = ".dk/r/c/t/k/build.pub"
         seen.buildpub = true
       else
-        local idx = string.find(source_rel, "/etc/dk/d/", 1, true)
-        if not idx then
-          idx = string.find(source_rel, "/etc/dk/i/", 1, true)
-        end
-        if not idx then
-          idx = string.find(source_rel, "/etc/dk/v/", 1, true)
-        end
-        if idx then
-          rel = string.sub(source_rel, idx + 1)
-          dest_rel = ".dk/r/c/" .. rel
+        -- Locate the etc/dk/{d,i,v} marker anywhere in the path (with or without
+        -- a leading slash) and rebuild the project-relative destination from it.
+        -- (lua-ml does not support `break`, so loop while no marker matched yet)
+        local markers = { "etc/dk/d/", "etc/dk/i/", "etc/dk/v/" }
+        local mi = 1
+        while markers[mi] and not dest_rel do
+          local idx = string.find(source_rel, markers[mi], 1, true)
+          if idx then
+            rel = string.sub(source_rel, idx)
+            dest_rel = ".dk/r/c/" .. rel
+          end
+          mi = mi + 1
         end
       end
       if dest_rel then
@@ -1003,7 +1025,20 @@ function CommonsBase_Remote__GitHub__0_1_0.ownerrepo(repo)
   return string.sub(repo, string.len(prefix) + 1)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p)
+function CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p, coreutils)
+  -- Prefer the real current UTC time from packaged coreutils so each run gets a
+  -- unique, monotonically increasing timestamp. lua-ml has no clock, and using
+  -- HEAD's commit date (below) collides across re-runs on the same session
+  -- branch because HEAD is the previous run's commit.
+  if coreutils then
+    local dated = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+      request, coreutils, { "date", "-u", "+%Y%m%d%H%M%S" },
+      { quiet = true, allowfailure = true })
+    local ts = CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(dated.stdout)
+    if ts then
+      return ts
+    end
+  end
   local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request, p.git, { "show", "-s", "--date=format:%Y%m%d%H%M%S", "--format=%cd", "HEAD" },
     { quiet = true, allowfailure = true })
@@ -1123,6 +1158,11 @@ function CommonsBase_Remote__GitHub__0_1_0.workflow_yaml(session, keep)
     "        run: |",
     "          set -euo pipefail",
     "          chmod +x ./dk0 2>/dev/null || true",
+    "          # INDEX/INDEX.sig were already verified with t/k/build.pub. Remove",
+    "          # the committed public key now so the runner's dk0 generates its own",
+    "          # fresh build keypair: a public key with no matching secret key (the",
+    "          # secret is intentionally never shipped) makes dk0 fail to sign.",
+    "          rm -f t/k/build.pub",
     "          argv=()",
     "          while IFS= read -r encoded; do",
     "            arg=\"$(printf '%s' \"$encoded\" | base64 -d)\"",
@@ -1133,8 +1173,16 @@ function CommonsBase_Remote__GitHub__0_1_0.workflow_yaml(session, keep)
     "          ./dk0 \"${argv[@]}\" >dk-session-stdout.txt 2>dk-session-stderr.txt",
     "          code=$?",
     "          set -e",
-    "          printf '%s\\n' \"$code\" > dk-session-exit-code.txt",
-    "          zip -q -j dk-session-result.zip dk-session-stdout.txt dk-session-stderr.txt dk-session-exit-code.txt",
+    "          # Combine streams into a single always-non-empty result file. gh",
+    "          # cannot upload 0-byte assets, so individual empty stdout/stderr",
+    "          # files fail; one delimited file avoids that and needs no zip.",
+    "          {",
+    "            printf 'DKEXIT %s\\n' \"$code\"",
+    "            printf '<<<DKSTDOUT>>>\\n'",
+    "            cat dk-session-stdout.txt",
+    "            printf '\\n<<<DKSTDERR>>>\\n'",
+    "            cat dk-session-stderr.txt",
+    "          } > dk-session-result.txt",
     "          echo \"code=$code\" >> \"$GITHUB_OUTPUT\"",
     "          exit 0",
     "      - name: Publish exec prerelease",
@@ -1147,8 +1195,8 @@ function CommonsBase_Remote__GitHub__0_1_0.workflow_yaml(session, keep)
     "          tag='${{ steps.phase.outputs.tag }}'",
     "          notes=\"exit=${{ steps.exec.outputs.code }}\"",
     "          gh release view \"$tag\" >/dev/null 2>&1 || \\",
-    "            gh release create \"$tag\" --prerelease --title \"$tag\" --notes \"$notes\" dk-session-result.zip",
-    "          gh release upload \"$tag\" dk-session-result.zip --clobber",
+    "            gh release create \"$tag\" --prerelease --title \"$tag\" --notes \"$notes\" dk-session-result.txt",
+    "          gh release upload \"$tag\" dk-session-result.txt --clobber",
     "      - name: Cleanup old dk-session prereleases",
     "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
     "        env:",
@@ -1207,41 +1255,63 @@ function CommonsBase_Remote__GitHub__0_1_0.find_workflow_run(json_text)
   return { status = status, conclusion = conclusion, url = url }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, p)
+function CommonsBase_Remote__GitHub__0_1_0.find_run_by_sha(json_text, head_sha)
+  -- `gh run list --json ...` returns a JSON array. Find the object whose
+  -- headSha matches this push and read its fields from that object's chunk.
+  -- (We parse in Lua rather than with `gh --jq`: the Windows gh wrapper routes
+  -- through cmd.exe, which mangles a jq expression's pipes and parentheses.)
+  local text = tostring(json_text or "")
+  local needle = "\"" .. tostring(head_sha or "") .. "\""
+  local pos = 1
+  while pos <= string.len(text) do
+    local close = string.find(text, "}", pos, true)
+    local chunk = nil
+    if close then
+      chunk = string.sub(text, pos, close)
+      pos = close + 1
+    else
+      chunk = string.sub(text, pos)
+      pos = string.len(text) + 1
+    end
+    if string.find(chunk, needle, 1, true) then
+      return {
+        status = CommonsBase_Remote__GitHub__0_1_0.json_string_field(chunk, "status"),
+        conclusion = CommonsBase_Remote__GitHub__0_1_0.json_string_field(chunk, "conclusion") or "",
+        url = CommonsBase_Remote__GitHub__0_1_0.json_string_field(chunk, "url") or ""
+      }
+    end
+  end
+  return nil
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, head_sha, p)
+  -- Match the workflow run by the pushed commit SHA. Listing by branch alone
+  -- races against stale runs (e.g. a previous push's run) that may still be the
+  -- latest, so filter server-side on headSha for the run this push triggered.
   local attempt = 1
   while attempt <= 60 do
-    print("Polling GitHub workflow " .. workflow .. " on " .. branch .. " (" .. tostring(attempt) .. "/60)")
+    print("Polling GitHub workflow " .. workflow .. " on " .. branch .. " for " .. tostring(head_sha) .. " (" .. tostring(attempt) .. "/60)")
     local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
       request,
       p.gh,
       {
         "run", "list", "-R", ownerrepo, "--branch", branch, "--event", "push",
-        "--limit", "20", "--json", "workflowName,status,conclusion,url"
+        "--limit", "30", "--json", "headSha,status,conclusion,url"
       },
       { quiet = true })
-    local combined = (result.stdout or "") .. "\n" .. (result.stderr or "")
     if result.code == "0" then
-      local found = CommonsBase_Remote__GitHub__0_1_0.find_workflow_run(combined)
-      if found then
+      local found = CommonsBase_Remote__GitHub__0_1_0.find_run_by_sha(result.stdout, head_sha)
+      if found and found.status then
         print("GitHub workflow status: " .. tostring(found.status) .. " conclusion: " .. tostring(found.conclusion))
         if found.url and found.url ~= "" then
           print("GitHub workflow: " .. found.url)
         end
-        if found.status and found.status == "completed" then
+        if found.status == "completed" then
           assert(found.conclusion == "success", "GitHub workflow " .. workflow .. " on " .. branch .. " completed with " .. tostring(found.conclusion))
           return
         end
       else
-        local out = CommonsBase_Remote__GitHub__0_1_0.trim(combined)
-        local err = CommonsBase_Remote__GitHub__0_1_0.trim(result.stderr or "")
-        if out ~= "" then
-          print("GitHub workflow poll stdout (first 200): " .. string.sub(out, 1, 200))
-        else
-          print("GitHub workflow poll: empty output (code=" .. tostring(result.code) .. ")")
-        end
-        if err ~= "" then
-          print("GitHub workflow poll stderr (first 200): " .. string.sub(err, 1, 200))
-        end
+        print("GitHub workflow poll: no run yet for commit " .. tostring(head_sha))
       end
     else
       local msg = CommonsBase_Remote__GitHub__0_1_0.trim(result.stderr or "")
@@ -1348,12 +1418,45 @@ function CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitignore_text()
   }, "\n")
 end
 
+function CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitattributes_text()
+  -- The exec workflow verifies the committed files against a locally-computed
+  -- INDEX (sha256). git EOL normalization must therefore be deterministic, so
+  -- that what the Linux runner checks out is byte-identical to what was hashed
+  -- locally on Windows. Force LF for the runner-critical text files, and treat
+  -- the Windows-only `.cmd`/`.bat` wrappers as binary (no conversion) so their
+  -- CRLF bytes survive the round-trip and their checksums match.
+  return table.concat({
+    "dk.u text eol=lf",
+    "dk0 text eol=lf",
+    "*.c text eol=lf",
+    "*.cpp text eol=lf",
+    "*.h text eol=lf",
+    "*.json text eol=lf",
+    "*.jsonc text eol=lf",
+    "*.sed text eol=lf",
+    "*.sh text eol=lf",
+    "*.txt text eol=lf",
+    "*.u text eol=lf",
+    "*.yml text eol=lf",
+    "*.yaml text eol=lf",
+    "*.cmd -text",
+    "*.bat -text",
+    ""
+  }, "\n")
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo_gitignore(request, coreutils, commit_dir)
   CommonsBase_Remote__GitHub__0_1_0.write_project_text(
     request,
     coreutils,
     commit_dir .. "/.gitignore",
     CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitignore_text(),
+    "0644")
+  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+    request,
+    coreutils,
+    commit_dir .. "/.gitattributes",
+    CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitattributes_text(),
     "0644")
 end
 
@@ -1492,15 +1595,17 @@ function CommonsBase_Remote__GitHub__0_1_0.sign_file(request, clone_root, messag
   assert(signed, "Could not sign " .. message_rel .. ": " .. tostring(msg))
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.download_result_zip(request, ownerrepo, tag, timestamp, p)
+function CommonsBase_Remote__GitHub__0_1_0.download_result(request, ownerrepo, tag, timestamp, p)
+  -- Download the individual result files (not a zip/bundle). They are read back
+  -- directly by path in the ui phase, which avoids both a package-namespaced
+  -- result module (rejected by distribution enforcement) and any zip handling.
   local result_dir = ".dk/r/results/" .. timestamp
-  local result_zip_rel = result_dir .. "/dk-session-result.zip"
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.gh, {
     "release", "download", tag, "-R", ownerrepo, "-D", result_dir,
-    "-p", "dk-session-result.zip"
+    "-p", "dk-session-result.txt",
+    "--clobber"
   })
-  local metadata = request.ui.checksum { path = result_zip_rel }
-  return result_zip_rel, metadata
+  return result_dir .. "/dk-session-result.txt"
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.basename(path)
@@ -1535,14 +1640,14 @@ end
 function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   local ownerrepo = CommonsBase_Remote__GitHub__0_1_0.ownerrepo(p.repo)
   CommonsBase_Remote__GitHub__0_1_0.resolve_programs(request, p)
-  local timestamp = p.timestamp
-  if timestamp == "19700101000000" then
-    timestamp = CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p)
-  end
   local snapshot_dir = request.continued and request.continued.project_snapshot
   assert(snapshot_dir, "Expected a project snapshot from the submit phase")
   local coreutils = CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir, p)
   local commit_dir = ".dk/r/c"
+  local timestamp = p.timestamp
+  if timestamp == "19700101000000" then
+    timestamp = CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p, coreutils)
+  end
 
   CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)
   CommonsBase_Remote__GitHub__0_1_0.ensure_control_tree(request, coreutils)
@@ -1561,6 +1666,20 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo_gitignore(request, coreutils, commit_dir)
 
   local copied = CommonsBase_Remote__GitHub__0_1_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
+
+  -- The project snapshot is fully consumed once inputs are staged. Close it now,
+  -- before the long-running remote phases (which can fail): dk requires every
+  -- request.continued directory handle to be closed when the rule returns, so
+  -- closing here guarantees that even if a later step raises. Also drop it from
+  -- request.continued: the build system's leak check currently flags the handle
+  -- even after it is closed, so remove the entry to satisfy that check.
+  if snapshot_dir then
+    request.io.close(snapshot_dir)
+    snapshot_dir = nil
+    if request.continued then
+      request.continued.project_snapshot = nil
+    end
+  end
 
   local audit_rel = "etc/dk/s/" .. tostring(selected) .. "-audit.txt"
   local argv_rel = "etc/dk/s/" .. tostring(selected) .. "-argv.txt"
@@ -1590,10 +1709,13 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
       ".gitignore", audit_rel, argv_rel, stage_index_rel, stage_sig_rel, workflow_rel, "t/k/build.pub"
     })
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "commit", "-m", "dk remote " .. timestamp .. " stage" })
+  -- (lua-ml cannot index a call result directly, so use a temp variable)
+  local stage_head = CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "rev-parse", "HEAD" })
+  local stage_sha = CommonsBase_Remote__GitHub__0_1_0.trim(stage_head.stdout)
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "tag", stage_tag })
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", branch })
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", stage_tag })
-  CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, p)
+  CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, stage_sha, p)
   CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, stage_tag, p)
 
   local manifest_paths = {}
@@ -1612,49 +1734,26 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   CommonsBase_Remote__GitHub__0_1_0.sign_file(request, commit_dir, "INDEX", "INDEX.sig")
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "add", "-A" })
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "commit", "-m", "dk remote " .. timestamp .. " exec" })
+  local exec_head = CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "rev-parse", "HEAD" })
+  local exec_sha = CommonsBase_Remote__GitHub__0_1_0.trim(exec_head.stdout)
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "tag", exec_tag })
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", branch })
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", exec_tag })
-  CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, p)
+  CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, exec_sha, p)
   CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, exec_tag, p)
-  local result_zip_rel, result_zip_meta =
-    CommonsBase_Remote__GitHub__0_1_0.download_result_zip(request, ownerrepo, exec_tag, timestamp, p)
-  local bundle_id = "CommonsBase_Remote.GitHub.Result." .. request.rule.generatesymbol() .. "@0.1.0"
-  if snapshot_dir then
-    request.io.close(snapshot_dir)
-  end
+  local result_dir = CommonsBase_Remote__GitHub__0_1_0.download_result(request, ownerrepo, exec_tag, timestamp, p)
+  -- Present the result here in the submit phase, where the files were just
+  -- downloaded. (The ui phase runs as a separate build task in a different tree,
+  -- so a raw path would not survive; and a package-namespaced result bundle would
+  -- be rejected by the distribution's module enforcement.) This prints the remote
+  -- streams and propagates the remote exit code by failing the rule on non-zero.
+  CommonsBase_Remote__GitHub__0_1_0.present_result(request, coreutils, result_dir)
   return {
     submit = {
       values = {
-        schema_version = { major = 1, minor = 0 },
-        bundles = {
-          {
-            id = bundle_id,
-            listing = {
-              origins = {
-                {
-                  name = "project-tree",
-                  mirrors = { "cell://root" }
-                }
-              }
-            },
-            assets = {
-              {
-                origin = "project-tree",
-                path = result_zip_rel,
-                size = result_zip_meta.size,
-                checksum = {
-                  sha256 = result_zip_meta.sha256
-                }
-              }
-            }
-          }
-        }
+        schema_version = { major = 1, minor = 0 }
       },
       expressions = {
-        directories = {
-          remote_result_dir = "$(get-asset " .. bundle_id .. " -p " .. result_zip_rel .. " -d :)"
-        },
         strings = {
           remote_result_tag = exec_tag
         }
@@ -1663,11 +1762,35 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.present_result(request)
-  local result_dir = assert(request.continued and request.continued.remote_result_dir, "Expected fetched remote result directory")
-  local stdout_text = CommonsBase_Remote__GitHub__0_1_0.read_named_file(request, result_dir, "stdout.txt")
-  local stderr_text = CommonsBase_Remote__GitHub__0_1_0.read_named_file(request, result_dir, "stderr.txt")
-  local exit_code_text = CommonsBase_Remote__GitHub__0_1_0.read_named_file(request, result_dir, "exit-code.txt")
+function CommonsBase_Remote__GitHub__0_1_0.read_path(request, coreutils, path)
+  -- Read via packaged coreutils (a spawned command), not request.io: spawned
+  -- programs run in the live process cwd where files like `.dk/r/results/...`
+  -- were downloaded, whereas request.io resolves against the rule's virtual tree.
+  local r = CommonsBase_Remote__GitHub__0_1_0.capture(request, coreutils, { "cat", path }, { quiet = true })
+  return r.stdout or ""
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.present_result(request, coreutils, result_file)
+  -- Parse the combined result file produced on the runner:
+  --   DKEXIT <code>\n<<<DKSTDOUT>>>\n<stdout>\n<<<DKSTDERR>>>\n<stderr>
+  local text = CommonsBase_Remote__GitHub__0_1_0.read_path(request, coreutils, result_file)
+  local exit_code = 0
+  local first = CommonsBase_Remote__GitHub__0_1_0.first_line(text)
+  if first and string.sub(first, 1, 7) == "DKEXIT " then
+    exit_code = tonumber(CommonsBase_Remote__GitHub__0_1_0.trim(string.sub(first, 8))) or 0
+  end
+  local stdout_marker = "<<<DKSTDOUT>>>\n"
+  local stderr_marker = "\n<<<DKSTDERR>>>\n"
+  local stdout_text = ""
+  local stderr_text = ""
+  local so = string.find(text, stdout_marker, 1, true)
+  local se = string.find(text, stderr_marker, 1, true)
+  if so and se then
+    stdout_text = string.sub(text, so + string.len(stdout_marker), se - 1)
+  end
+  if se then
+    stderr_text = string.sub(text, se + string.len(stderr_marker))
+  end
   if stdout_text and stdout_text ~= "" then
     print("----- remote stdout -----")
     print(stdout_text)
@@ -1676,8 +1799,6 @@ function CommonsBase_Remote__GitHub__0_1_0.present_result(request)
     print("----- remote stderr -----")
     print(stderr_text)
   end
-  request.io.close(result_dir)
-  local exit_code = tonumber(CommonsBase_Remote__GitHub__0_1_0.trim(exit_code_text or "0")) or 0
   assert(exit_code == 0, "Remote command exited with code " .. tostring(exit_code))
 end
 
@@ -1803,9 +1924,9 @@ function uirules.Run(command, request, continue_)
       if request.continued and request.continued.dry_run_complete then
         request.io.close(request.continued.dry_run_complete)
       end
-    else
-      CommonsBase_Remote__GitHub__0_1_0.present_result(request)
     end
+    -- Non-dry-run results are presented during the submit phase (see
+    -- orchestrate_submit), so the ui phase has nothing more to do here.
   end
 end
 
