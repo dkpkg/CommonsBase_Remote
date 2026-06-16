@@ -215,16 +215,12 @@ function CommonsBase_Remote__GitHub__0_1_0.base64_encode(s)
   local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   local out = {}
   local i = 1
-  local s_len = string.len(s)
-  while i <= s_len do
-    -- TEMPORARY guard: older public dk0 releases raise "index out of bounds"
-    -- from string.byte past the end of a string instead of returning nil
-    -- (fixed in dksdk-coder "Fix Lua string.byte to return nil ..."). Until
-    -- that fix ships in the minimum supported public dk0, only read in range.
-    -- Remove these `(i + N <= s_len) and` guards once that dk0 is required.
+  while i <= string.len(s) do
+    -- string.byte returns nil past end-of-string (requires dk0 >= 2.4.2.191,
+    -- which fixed string.byte to return nil instead of raising out-of-range).
     local b1 = string.byte(s, i) or 0
-    local b2 = (i + 1 <= s_len) and (string.byte(s, i + 1) or 0) or 0
-    local b3 = (i + 2 <= s_len) and (string.byte(s, i + 2) or 0) or 0
+    local b2 = string.byte(s, i + 1) or 0
+    local b3 = string.byte(s, i + 2) or 0
     local n = b1 * 65536 + b2 * 256 + b3
     local c1 = math.floor(n / 262144) % 64 + 1
     local c2 = math.floor(n / 4096) % 64 + 1
@@ -890,22 +886,18 @@ function CommonsBase_Remote__GitHub__0_1_0.prepare_commit_repo_inputs(request, s
   local copied = {}
   local seen = {}
   p.coreutils = coreutils
+  -- Remove ALL tracked files (index + working tree), then re-materialize only the
+  -- intended inputs below. The session branch may carry stray files committed by
+  -- earlier runs (e.g. a whole project tree); removing a known list is not enough
+  -- and `git add -A` would re-commit them. The local-only `.local`, `t/c`, `t/d`,
+  -- `t/k/build.sec` paths are gitignored (untracked) and so are not touched here.
   CommonsBase_Remote__GitHub__0_1_0.try_capture(
     request,
     p.git,
-    {
-      "-C", ".dk/r/c", "rm", "-r", "-f", "--ignore-unmatch",
-      "dk.u",
-      "dk0",
-      "dk0.cmd",
-      "etc/dk/d",
-      "etc/dk/i",
-      "etc/dk/v",
-      "INDEX",
-      "INDEX.sig",
-      "t/k/build.pub"
-    },
+    { "-C", ".dk/r/c", "rm", "-r", "-f", "--ignore-unmatch", "." },
     { quiet = true, allowfailure = true })
+  -- Re-create the ignore/attributes policy (the full rm above cleared it).
+  CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo_gitignore(request, coreutils, ".dk/r/c")
   CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, snapshot_dir, p, copied, seen)
   return copied
 end
@@ -1663,8 +1655,10 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
 
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "checkout", "-B", branch, "origin/" .. branch })
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "pull", "--rebase", "origin", branch })
-  CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo_gitignore(request, coreutils, commit_dir)
 
+  -- prepare_commit_repo_inputs clears all tracked files (dropping any strays the
+  -- session branch carries) and then re-creates the ignore/attributes policy and
+  -- copies the intended inputs.
   local copied = CommonsBase_Remote__GitHub__0_1_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
 
   -- The project snapshot is fully consumed once inputs are staged. Close it now,
