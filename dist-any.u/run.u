@@ -6,7 +6,7 @@ The initial package exports the GitHub remote orchestration rule in dry-run
 mode. Running the free rule here distributes the entire scriptmodule.
 
   $ run-rule CommonsBase_Remote.GitHub.F_DryRunPlan@0.1.0 -f ${RUNTIME}/GitHub-0.1.0.plan.txt dry_run=true timestamp=20260527165106 repo=github.com/OWNER/REPO cmd=get-bundle commandvsl='get-bundle MlFront_Std.Sample.Abc@1.0.0' 'argv[]=get-bundle' 'argv[]=MlFront_Std.Sample.Abc@1.0.0'
-  \test(pass)\;asset:CommonsBase_Remote.GitHub.F_DryRunPlan.Output.Xyccwku44zwxnvyzougzvi4xe5e@0.1.0+bn-20250101000000:dry-run.txt
+  \test(pass)\;asset:CommonsBase_Remote.GitHub.F_DryRunPlan.Output.Xyccwku44zwxnvyzougzvi4xe5e@0.1.0:dry-run.txt
 
 ## GitHub remote execution flow
 
