@@ -89,6 +89,11 @@ function CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
   p.repo = CommonsBase_Remote__GitHub__0_1_0.normalize_repo(CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.repo) or "")
   p.cmd = assert(CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.cmd), "Expected `cmd=COMMAND`")
   p.commandvsl = assert(CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.commandvsl), "Expected `commandvsl=COMMAND`")
+  -- F-6: the audited command must stay on a single line so it cannot spoof or
+  -- split the append-only audit log.
+  assert(
+    not string.find(p.commandvsl, "\n", 1, true) and not string.find(p.commandvsl, "\r", 1, true),
+    "`commandvsl` must be a single line (no newline characters)")
   p.argv = request.user.argv or {}
   assert(type(p.argv) == "table", "Expected at least one `argv[]=...` entry")
   assert(next(p.argv) ~= nil, "Expected at least one `argv[]=...` entry")
@@ -99,7 +104,15 @@ function CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
     project_root = CommonsBase_Remote__GitHub__0_1_0.user_scalar(continued.project_root)
   end
   p.project_root = project_root or ""
-  p.gh = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.gh) or "gh"
+  -- gh defaults to the packaged GitHub CLI (bootstrapped in orchestrate_submit),
+  -- not a host binary, so p.gh stays unset unless the caller supplies one; git
+  -- stays a host program.
+  local gh_user = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.gh)
+  p.gh = gh_user or "gh"
+  p.gh_user_supplied = false
+  if gh_user then
+    p.gh_user_supplied = true
+  end
   p.git = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.git) or "git"
   return p
 end
@@ -642,6 +655,350 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
   return program
 end
 
+-- The Age and GitHubCLI objects expose explicit per-host slots (there is no
+-- Release.execution_abi alias like Coreutils has), so resolve the slot for the
+-- orchestrator host. Both objects share these five slot names.
+function CommonsBase_Remote__GitHub__0_1_0.host_tool_slot(request)
+  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+    return "Release.Windows_x86_64"
+  end
+  local os_slot = "Linux"
+  local uname_s = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, "uname", { "-s" },
+    { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+  if uname_s.code == "0" then
+    local os_name = CommonsBase_Remote__GitHub__0_1_0.trim(
+      CommonsBase_Remote__GitHub__0_1_0.first_line(uname_s.stdout))
+    if os_name == "Darwin" then
+      os_slot = "Darwin"
+    end
+  end
+  local arch_slot = "x86_64"
+  local uname_m = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, "uname", { "-m" },
+    { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+  if uname_m.code == "0" then
+    local arch = CommonsBase_Remote__GitHub__0_1_0.trim(
+      CommonsBase_Remote__GitHub__0_1_0.first_line(uname_m.stdout))
+    if arch == "arm64" or arch == "aarch64" then
+      arch_slot = "arm64"
+    end
+  end
+  return "Release." .. os_slot .. "_" .. arch_slot
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, relpath)
+  return CommonsBase_Remote__GitHub__0_1_0.path_join(
+    bootstrap_root,
+    CommonsBase_Remote__GitHub__0_1_0.is_windows(request)
+      and CommonsBase_Remote__GitHub__0_1_0.windows_relpath(relpath)
+      or CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(relpath))
+end
+
+-- Fetch a packaged object from CommonsBase_Build into a private local directory
+-- via the snapshot's dk0, mirroring ensure_coreutils. Age and gh pull in
+-- CommonsBase_Std.Extract to unpack, so both packages are trusted locally.
+function CommonsBase_Remote__GitHub__0_1_0.bootstrap_build_object(request, snapshot_dir, p, module_ver, subdir)
+  local bootstrap_root = request.io.realpath(snapshot_dir)
+  local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+  local import_dir = "etc/dk/i"
+  local project_root = p.project_root or ""
+  if project_root == "" then
+    project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+  end
+  if project_root ~= "" then
+    if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+      import_dir = project_root .. "\\etc\\dk\\i"
+    else
+      import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
+    end
+  end
+  CommonsBase_Remote__GitHub__0_1_0.capture(
+    request,
+    local_program,
+    {
+      "--trust-local-package", "CommonsBase_Build",
+      "--trust-local-package", "CommonsBase_Std",
+      "-I", import_dir,
+      "get-object", module_ver,
+      "-s", CommonsBase_Remote__GitHub__0_1_0.host_tool_slot(request),
+      "-d", subdir
+    },
+    { cwd = bootstrap_root })
+  return bootstrap_root
+end
+
+-- Bootstrap the packaged Age tools (age + age-keygen). Returns a table of
+-- absolute program paths so later capture() calls resolve regardless of cwd.
+function CommonsBase_Remote__GitHub__0_1_0.ensure_age(request, snapshot_dir, p)
+  local exe = ""
+  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+    exe = ".exe"
+  end
+  local subdir = ".dk/r/c/.local/age"
+  local age_rel = subdir .. "/bin/age" .. exe
+  local keygen_rel = subdir .. "/bin/age-keygen" .. exe
+  local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, age_rel, { "--version" }, { quiet = true, allowfailure = true })
+  if probe.code ~= "0" then
+    local bootstrap_root = CommonsBase_Remote__GitHub__0_1_0.bootstrap_build_object(
+      request, snapshot_dir, p, "CommonsBase_Build.Age@1.3.1", subdir)
+    return {
+      age = CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, age_rel),
+      keygen = CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, keygen_rel)
+    }
+  end
+  return { age = age_rel, keygen = keygen_rel }
+end
+
+-- Bootstrap the packaged GitHub CLI. Returns the gh program path, mirroring
+-- ensure_coreutils' return convention.
+function CommonsBase_Remote__GitHub__0_1_0.ensure_gh(request, snapshot_dir, p)
+  local exe = ""
+  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+    exe = ".exe"
+  end
+  local subdir = ".dk/r/c/.local/gh"
+  local gh_rel = subdir .. "/bin/gh" .. exe
+  local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, gh_rel, { "--version" }, { quiet = true, allowfailure = true })
+  if probe.code ~= "0" then
+    local bootstrap_root = CommonsBase_Remote__GitHub__0_1_0.bootstrap_build_object(
+      request, snapshot_dir, p, "CommonsBase_Build.GitHubCLI@2.92.0", subdir)
+    return CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, gh_rel)
+  end
+  return gh_rel
+end
+
+-- ===== Age session recipient key material (B2) =====
+
+function CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, prefix)
+  local start = 1
+  local len = string.len(text)
+  while start <= len do
+    local nl = string.find(text, "\n", start, true)
+    local line
+    if nl then
+      line = string.sub(text, start, nl - 1)
+    else
+      line = string.sub(text, start)
+    end
+    if string.sub(line, 1, string.len(prefix)) == prefix then
+      return CommonsBase_Remote__GitHub__0_1_0.trim(line)
+    end
+    if nl then
+      start = nl + 1
+    else
+      start = len + 1
+    end
+  end
+  return nil
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.gh_variable_get(request, p, ownerrepo, name)
+  local r = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, p.gh, { "variable", "get", name, "-R", ownerrepo },
+    { quiet = true, allowfailure = true })
+  if r.code == "0" then
+    local v = CommonsBase_Remote__GitHub__0_1_0.trim(r.stdout or "")
+    if v ~= "" then
+      return v
+    end
+  end
+  return nil
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.gh_variable_set(request, p, ownerrepo, name, value)
+  CommonsBase_Remote__GitHub__0_1_0.capture(
+    request, p.gh, { "variable", "set", name, "--body", value, "-R", ownerrepo },
+    { quiet = true })
+end
+
+-- Set a repository secret without exposing its value in the process argument
+-- list: write a dotenv file into the gitignored t/c area, load it with
+-- `gh secret set -f`, then remove it.
+function CommonsBase_Remote__GitHub__0_1_0.gh_secret_set(request, p, ownerrepo, coreutils, name, value)
+  local env_rel = ".dk/r/c/t/c/dk-session-secret.env"
+  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+    request, coreutils, env_rel, name .. "=" .. value .. "\n", "0600")
+  CommonsBase_Remote__GitHub__0_1_0.capture(
+    request, p.gh, { "secret", "set", "-f", env_rel, "-R", ownerrepo },
+    { quiet = true })
+  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, coreutils, { "rm", "-f", env_rel },
+    { quiet = true, allowfailure = true })
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.b64_encode_path(request, coreutils, path)
+  local r = CommonsBase_Remote__GitHub__0_1_0.capture(
+    request, coreutils, { "base64", "-w", "0", path }, { quiet = true })
+  return CommonsBase_Remote__GitHub__0_1_0.trim(r.stdout or "")
+end
+
+function CommonsBase_Remote__GitHub__0_1_0.b64_decode_to_path(request, coreutils, b64, out_rel)
+  local enc_rel = out_rel .. ".b64"
+  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, enc_rel, b64 .. "\n", "0644")
+  local r = CommonsBase_Remote__GitHub__0_1_0.capture(
+    request, coreutils, { "base64", "-d", enc_rel }, { quiet = true })
+  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, out_rel, r.stdout or "", "0644")
+  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, coreutils, { "rm", "-f", enc_rel }, { quiet = true, allowfailure = true })
+end
+
+-- Run age-keygen and parse the public recipient plus the single-line secret key.
+-- The secret must never be logged; the capture is quiet and the value stays in
+-- memory only until stored as a GitHub secret.
+function CommonsBase_Remote__GitHub__0_1_0.age_generate(request, age)
+  local r = CommonsBase_Remote__GitHub__0_1_0.capture(request, age.keygen, {}, { quiet = true })
+  local text = r.stdout or ""
+  local recipient = nil
+  local pub_marker = "# public key: "
+  local pub_line = CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, pub_marker)
+  if pub_line then
+    recipient = CommonsBase_Remote__GitHub__0_1_0.trim(string.sub(pub_line, string.len(pub_marker) + 1))
+  end
+  if not recipient then
+    local err_marker = "Public key: "
+    local err_line = CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(r.stderr or "", err_marker)
+    if err_line then
+      recipient = CommonsBase_Remote__GitHub__0_1_0.trim(string.sub(err_line, string.len(err_marker) + 1))
+    end
+  end
+  local secret = CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, "AGE-SECRET-KEY-")
+  assert(recipient and string.sub(recipient, 1, 4) == "age1",
+    "age-keygen did not produce a public recipient")
+  assert(secret, "age-keygen did not produce a secret key")
+  return { recipient = recipient, secret = secret }
+end
+
+-- Resolve the session recipient (age public key). The private half lives only in
+-- the GitHub secret DK_SESSION_KEY; the public half and its signify signature
+-- live in repository variables. F-10: on every run the signed recipient variable
+-- is verified against the committed build public key before it is used to
+-- encrypt, and the rule fails closed when the variable is missing or unsigned.
+function CommonsBase_Remote__GitHub__0_1_0.ensure_session_recipient(request, ownerrepo, p, age, coreutils)
+  local recip_var = CommonsBase_Remote__GitHub__0_1_0.gh_variable_get(request, p, ownerrepo, "dk_session_recipient")
+  local sig_var = CommonsBase_Remote__GitHub__0_1_0.gh_variable_get(request, p, ownerrepo, "dk_session_recipient_sig")
+  local msg_rel = ".dk/r/c/t/c/dk-session-recipient.txt"
+  local sig_rel = ".dk/r/c/t/c/dk-session-recipient.sig"
+  if recip_var and sig_var then
+    CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, msg_rel, recip_var .. "\n", "0644")
+    CommonsBase_Remote__GitHub__0_1_0.b64_decode_to_path(request, coreutils, sig_var, sig_rel)
+    local verified = request.ui.signify {
+      operation = "verify",
+      pubkey = ".dk/r/c/t/k/build.pub",
+      message = msg_rel,
+      signature = sig_rel
+    }
+    assert(verified,
+      "Refusing to encrypt: the dk_session_recipient signature did not verify against t/k/build.pub")
+    return recip_var
+  end
+  -- First run or key rotation: mint a recipient keypair and publish it.
+  local kp = CommonsBase_Remote__GitHub__0_1_0.age_generate(request, age)
+  CommonsBase_Remote__GitHub__0_1_0.gh_secret_set(request, p, ownerrepo, coreutils, "DK_SESSION_KEY", kp.secret)
+  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, msg_rel, kp.recipient .. "\n", "0644")
+  local signed = request.ui.signify {
+    operation = "sign",
+    secret_key = ".dk/r/c/t/k/build.sec",
+    message = msg_rel,
+    signature = sig_rel
+  }
+  assert(signed, "Could not sign the session recipient")
+  local sig_b64 = CommonsBase_Remote__GitHub__0_1_0.b64_encode_path(request, coreutils, sig_rel)
+  CommonsBase_Remote__GitHub__0_1_0.gh_variable_set(request, p, ownerrepo, "dk_session_recipient", kp.recipient)
+  CommonsBase_Remote__GitHub__0_1_0.gh_variable_set(request, p, ownerrepo, "dk_session_recipient_sig", sig_b64)
+  return kp.recipient
+end
+
+-- ===== Local asset staging + encryption (B3) =====
+
+-- Enumerate workspace assets whose mirrors are all local (project-relative).
+-- request.ui.assets enforces F-12 containment (it rejects any local mirror that
+-- escapes the project root). Returns the local mirror paths (for snapshotting the
+-- sources) and per-asset items { source_rel, cksum }: source_rel is the
+-- project-relative source file (mirror/path) and cksum is a content hash used as
+-- the encrypted blob name.
+function CommonsBase_Remote__GitHub__0_1_0.enumerate_local_assets(request)
+  local assets = request.ui.assets {}
+  local mirrors = {}
+  local items = {}
+  local i = 1
+  while assets[i] do
+    local a = assets[i]
+    if a["local"] then
+      local mp = a.mirrors[1]
+      if mp then
+        table.insert(mirrors, mp)
+        local cksum = a.checksum.sha256 or a.checksum.blake2b256 or a.checksum.sha1
+        table.insert(items, { source_rel = mp .. "/" .. a.path, cksum = cksum })
+      end
+    end
+    i = i + 1
+  end
+  return { mirrors = mirrors, items = items }
+end
+
+-- Copy each local asset's source file out of the snapshot into a gitignored
+-- staging directory, named by its content hash. The plaintext bytes never enter
+-- the committed tree; they are encrypted for the runner after the stage release
+-- exists. Returns the items { source_rel, cksum } for the manifest.
+function CommonsBase_Remote__GitHub__0_1_0.stage_local_assets(request, snapshot_dir, p, coreutils)
+  local locals = CommonsBase_Remote__GitHub__0_1_0.enumerate_local_assets(request)
+  local items = locals.items
+  if not items[1] then
+    return items
+  end
+  local snapshot_root = request.io.realpath(snapshot_dir)
+  local stage_dir = ".dk/r/c/t/c/stage-assets"
+  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, coreutils, { "rm", "-rf", stage_dir }, { quiet = true, allowfailure = true })
+  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    request, coreutils, { "mkdir", "-p", stage_dir }, { quiet = true, allowfailure = true })
+  local i = 1
+  while items[i] do
+    local item = items[i]
+    local src = snapshot_root .. "/" .. item.source_rel
+    CommonsBase_Remote__GitHub__0_1_0.capture(
+      request, coreutils, { "cp", src, stage_dir .. "/" .. item.cksum }, { quiet = true })
+    i = i + 1
+  end
+  return items
+end
+
+-- The committed manifest maps each encrypted blob (content hash) to the local
+-- source path where the runner decrypts it. It is integrity-protected by the
+-- signed INDEX, so the runner can trust the paths.
+function CommonsBase_Remote__GitHub__0_1_0.asset_manifest_text(items)
+  local lines = {}
+  local i = 1
+  while items[i] do
+    table.insert(lines, items[i].cksum .. " " .. items[i].source_rel)
+    i = i + 1
+  end
+  return table.concat(lines, "\n") .. "\n"
+end
+
+-- Encrypt each staged source for the verified session recipient and upload the
+-- ciphertext to the stage release. Only the encrypted blobs leave the machine;
+-- the plaintext sources stay in the gitignored staging dir.
+function CommonsBase_Remote__GitHub__0_1_0.encrypt_and_upload_assets(request, ownerrepo, stage_tag, items, recipient, p, age)
+  local stage_dir = ".dk/r/c/t/c/stage-assets"
+  local i = 1
+  while items[i] do
+    local cksum = items[i].cksum
+    local plain = stage_dir .. "/" .. cksum
+    local cipher = plain .. ".age"
+    CommonsBase_Remote__GitHub__0_1_0.capture(
+      request, age.age, { "-r", recipient, "-o", cipher, plain }, { quiet = true })
+    CommonsBase_Remote__GitHub__0_1_0.capture(
+      request, p.gh,
+      { "release", "upload", stage_tag, cipher, "-R", ownerrepo, "--clobber" },
+      { quiet = true })
+    i = i + 1
+  end
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(path)
   path = tostring(path)
   local parts = {}
@@ -940,26 +1297,19 @@ function CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(request, w
 end
 
 function CommonsBase_Remote__GitHub__0_1_0.resolve_programs(request, p)
-  local gh_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
-    request, p.gh, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
-  if gh_probe.code ~= "0" then
-    if p.gh == "gh" then
-      local wrapped = CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(
-        request,
-        "resolve-gh",
-        "gh",
-        { "C:\\Program Files\\GitHub CLI" })
-      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
-        request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
-      if wrapped_probe.code == "0" then
-        p.gh = wrapped
-      end
-    elseif string.find(p.gh, " ", 1, true) then
-      local wrapped = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-gh", p.gh)
-      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
-        request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
-      if wrapped_probe.code == "0" then
-        p.gh = wrapped
+  -- Only resolve a host gh when the caller supplied one; otherwise the packaged
+  -- GitHub CLI is bootstrapped later (ensure_gh) and this probe is skipped.
+  if p.gh_user_supplied then
+    local gh_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+      request, p.gh, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+    if gh_probe.code ~= "0" then
+      if string.find(p.gh, " ", 1, true) then
+        local wrapped = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-gh", p.gh)
+        local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+          request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
+        if wrapped_probe.code == "0" then
+          p.gh = wrapped
+        end
       end
     end
   end
@@ -1143,6 +1493,45 @@ function CommonsBase_Remote__GitHub__0_1_0.workflow_yaml(session, keep)
     "          set -euo pipefail",
     "          ./.dk-remote/bin/mlfront-signify -V -p t/k/build.pub -x INDEX.sig -m INDEX",
     "          sha256sum -c INDEX",
+    "      - name: Decrypt staged assets",
+    "        if: steps.phase.outputs.phase == 'exec'",
+    "        env:",
+    "          GH_TOKEN: ${{ github.token }}",
+    "          DK_SESSION_KEY: ${{ secrets.DK_SESSION_KEY }}",
+    "        shell: bash",
+    "        run: |",
+    "          set -euo pipefail",
+    "          manifest='etc/dk/s/__SESSION__-assets.txt'",
+    "          # Only local-asset commands commit a manifest (covered by the already",
+    "          # verified INDEX). Workspace-only commands (lua/test) ship none.",
+    "          [ -f \"$manifest\" ] || exit 0",
+    "          if [ -z \"${DK_SESSION_KEY:-}\" ]; then",
+    "            echo 'Local assets require the DK_SESSION_KEY secret' 1>&2",
+    "            exit 1",
+    "          fi",
+    "          tag='${{ steps.phase.outputs.tag }}'",
+    "          stage_tag=\"${tag%-exec}-stage\"",
+    "          mkdir -p .dk-remote/enc",
+    "          curl -fsSL 'https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz' -o .dk-remote/age.tar.gz",
+    "          printf '%s  %s\\n' 'bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377' '.dk-remote/age.tar.gz' | sha256sum -c -",
+    "          tar -xzf .dk-remote/age.tar.gz -C .dk-remote",
+    "          umask 077",
+    "          printf '%s\\n' \"$DK_SESSION_KEY\" > .dk-remote/session.key",
+    "          while read -r cksum dest; do",
+    "            [ -n \"$cksum\" ] || continue",
+    "            # Path-traversal defense (in addition to host-side F-12): reject",
+    "            # absolute paths and any '..' segment before writing.",
+    "            case \"$dest\" in",
+    "              /*) echo \"Unsafe absolute asset path: $dest\" 1>&2; exit 1;;",
+    "            esac",
+    "            case \"/$dest/\" in",
+    "              */../*) echo \"Unsafe asset path: $dest\" 1>&2; exit 1;;",
+    "            esac",
+    "            gh release download \"$stage_tag\" -R '${{ github.repository }}' -p \"$cksum.age\" -D .dk-remote/enc --clobber",
+    "            mkdir -p \"$(dirname \"$dest\")\"",
+    "            .dk-remote/age/age -d -i .dk-remote/session.key -o \"$dest\" \".dk-remote/enc/$cksum.age\"",
+    "          done < \"$manifest\"",
+    "          rm -f .dk-remote/session.key",
     "      - name: Execute remote command",
     "        if: steps.phase.outputs.phase == 'exec'",
     "        id: exec",
@@ -1635,6 +2024,10 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   local snapshot_dir = request.continued and request.continued.project_snapshot
   assert(snapshot_dir, "Expected a project snapshot from the submit phase")
   local coreutils = CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir, p)
+  if not p.gh_user_supplied then
+    p.gh = CommonsBase_Remote__GitHub__0_1_0.ensure_gh(request, snapshot_dir, p)
+  end
+  local age = CommonsBase_Remote__GitHub__0_1_0.ensure_age(request, snapshot_dir, p)
   local commit_dir = ".dk/r/c"
   local timestamp = p.timestamp
   if timestamp == "19700101000000" then
@@ -1661,18 +2054,27 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   -- copies the intended inputs.
   local copied = CommonsBase_Remote__GitHub__0_1_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
 
+  -- Materialize any local-asset bundles into a gitignored staging area (from the
+  -- snapshot, which holds the mirror sources) BEFORE the snapshot is closed. The
+  -- plaintext bundle bytes never enter the committed tree; they are encrypted for
+  -- the runner after the stage prerelease exists.
+  local staged_assets = CommonsBase_Remote__GitHub__0_1_0.stage_local_assets(request, snapshot_dir, p, coreutils)
+
   -- The project snapshot is fully consumed once inputs are staged. Close it now,
   -- before the long-running remote phases (which can fail): dk requires every
   -- request.continued directory handle to be closed when the rule returns, so
-  -- closing here guarantees that even if a later step raises. Also drop it from
-  -- request.continued: the build system's leak check currently flags the handle
-  -- even after it is closed, so remove the entry to satisfy that check.
+  -- closing here guarantees that even if a later step raises.
   if snapshot_dir then
     request.io.close(snapshot_dir)
     snapshot_dir = nil
-    if request.continued then
-      request.continued.project_snapshot = nil
-    end
+  end
+
+  -- Resolve the session recipient (verify-before-encrypt, F-10) only when there
+  -- is local-asset content to encrypt. Commands that need only the committed
+  -- workspace (lua/test) skip the recipient and encryption entirely.
+  local recipient = nil
+  if staged_assets[1] then
+    recipient = CommonsBase_Remote__GitHub__0_1_0.ensure_session_recipient(request, ownerrepo, p, age, coreutils)
   end
 
   local audit_rel = "etc/dk/s/" .. tostring(selected) .. "-audit.txt"
@@ -1712,6 +2114,18 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, stage_sha, p)
   CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, stage_tag, p)
 
+  -- Encrypt the staged local-asset sources for the verified recipient and upload
+  -- the ciphertext to the stage release, where the runner decrypts them. Commit a
+  -- manifest (blob hash -> local source path) so the runner knows where to place
+  -- each decrypted file; the manifest is integrity-protected by the signed INDEX.
+  local assets_rel = "etc/dk/s/" .. tostring(selected) .. "-assets.txt"
+  if staged_assets[1] then
+    CommonsBase_Remote__GitHub__0_1_0.encrypt_and_upload_assets(request, ownerrepo, stage_tag, staged_assets, recipient, p, age)
+    CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+      request, coreutils, commit_dir .. "/" .. assets_rel,
+      CommonsBase_Remote__GitHub__0_1_0.asset_manifest_text(staged_assets), "0644")
+  end
+
   local manifest_paths = {}
   local i = 1
   while copied[i] do
@@ -1724,6 +2138,9 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   table.insert(manifest_paths, stage_sig_rel)
   table.insert(manifest_paths, workflow_rel)
   table.insert(manifest_paths, ".gitignore")
+  if staged_assets[1] then
+    table.insert(manifest_paths, assets_rel)
+  end
   CommonsBase_Remote__GitHub__0_1_0.write_checksum_manifest(request, commit_dir, manifest_paths, "INDEX", coreutils)
   CommonsBase_Remote__GitHub__0_1_0.sign_file(request, commit_dir, "INDEX", "INDEX.sig")
   CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "add", "-A" })
@@ -1764,6 +2181,41 @@ function CommonsBase_Remote__GitHub__0_1_0.read_path(request, coreutils, path)
   return r.stdout or ""
 end
 
+-- F-17: the remote streams are attacker-influenced (the runner attests the exit
+-- code, but stdout/stderr content is whatever the remote command emitted). Strip
+-- ANSI CSI escape sequences and other control bytes (keeping tab/newline) so the
+-- output cannot rewrite the local terminal via escape codes.
+function CommonsBase_Remote__GitHub__0_1_0.sanitize_output(text)
+  local out = {}
+  local i = 1
+  local len = string.len(text)
+  while i <= len do
+    local b = string.byte(text, i)
+    if b == 27 then
+      i = i + 1
+      if i <= len and string.sub(text, i, i) == "[" then
+        i = i + 1
+        local done = false
+        while i <= len and not done do
+          local fb = string.byte(text, i)
+          i = i + 1
+          if fb >= 64 and fb <= 126 then
+            done = true
+          end
+        end
+      else
+        i = i + 1
+      end
+    elseif b == 9 or b == 10 or b >= 32 then
+      table.insert(out, string.sub(text, i, i))
+      i = i + 1
+    else
+      i = i + 1
+    end
+  end
+  return table.concat(out)
+end
+
 function CommonsBase_Remote__GitHub__0_1_0.present_result(request, coreutils, result_file)
   -- Parse the combined result file produced on the runner:
   --   DKEXIT <code>\n<<<DKSTDOUT>>>\n<stdout>\n<<<DKSTDERR>>>\n<stderr>
@@ -1786,12 +2238,12 @@ function CommonsBase_Remote__GitHub__0_1_0.present_result(request, coreutils, re
     stderr_text = string.sub(text, se + string.len(stderr_marker))
   end
   if stdout_text and stdout_text ~= "" then
-    print("----- remote stdout -----")
-    print(stdout_text)
+    print("----- remote stdout (runner-attested exit code; content is remote) -----")
+    print(CommonsBase_Remote__GitHub__0_1_0.sanitize_output(stdout_text))
   end
   if stderr_text and stderr_text ~= "" then
-    print("----- remote stderr -----")
-    print(stderr_text)
+    print("----- remote stderr (runner-attested exit code; content is remote) -----")
+    print(CommonsBase_Remote__GitHub__0_1_0.sanitize_output(stderr_text))
   end
   assert(exit_code == 0, "Remote command exited with code " .. tostring(exit_code))
 end
@@ -1859,19 +2311,29 @@ function uirules.Run(command, request, continue_)
       }
     end
     if continue_ == nil or continue_ == "start" then
+      local patterns = {
+        p.workspace,
+        "dk0",
+        "dk0.cmd",
+        "etc/dk/d/**",
+        "etc/dk/i/**",
+        "etc/dk/v/**",
+        "t/k/build.sec",
+        "t/k/build.pub"
+      }
+      -- Include the sources of local assets (mirrors strictly inside the project)
+      -- so the snapshot can materialize them for encrypted staging to the runner.
+      local locals = CommonsBase_Remote__GitHub__0_1_0.enumerate_local_assets(request)
+      local li = 1
+      while locals.mirrors[li] do
+        table.insert(patterns, locals.mirrors[li])
+        table.insert(patterns, locals.mirrors[li] .. "/**")
+        li = li + 1
+      end
       local bundle, getbundle = request.ui.glob {
         trace = 0,
         cell = "root",
-        patterns = {
-          p.workspace,
-          "dk0",
-          "dk0.cmd",
-          "etc/dk/d/**",
-          "etc/dk/i/**",
-          "etc/dk/v/**",
-          "t/k/build.sec",
-          "t/k/build.pub"
-        },
+        patterns = patterns,
         excludes = { ".dk/**", ".git", ".git/**", "_build/**", "remote-github/**", "dk-session-results-*/**" }
       }
       local submit_strings = {
