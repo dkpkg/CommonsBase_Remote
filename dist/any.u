@@ -5,9 +5,9 @@
 The initial package exports the GitHub remote orchestration rule in dry-run
 mode. Running the free rule here distributes the entire scriptmodule.
 
-  $ run-function CommonsBase_Remote.GitHub.F_DryRunPlan@0.1.1 -f ${RUNTIME}/GitHub-0.1.1.plan.txt dry_run=true timestamp=20260527165106 repo=github.com/OWNER/REPO cmd=get-bundle commandvsl='get-bundle MlFront_Std.Sample.Abc@1.0.0' 'argv[]=get-bundle' 'argv[]=MlFront_Std.Sample.Abc@1.0.0'
+  $ run-function CommonsBase_Remote.GitHub.F_DryRunPlan@0.1.0 -f ${RUNTIME}/GitHub-0.1.0.plan.txt dry_run=true timestamp=20260527165106 repo=github.com/OWNER/REPO cmd=get-bundle commandvsl='get-bundle MlFront_Std.Sample.Abc@1.0.0' 'argv[]=get-bundle' 'argv[]=MlFront_Std.Sample.Abc@1.0.0'
   \test(pass)
-  \dk.asset(path: "dry-run.txt", value-id: "aih4bwzscnsglr6vtd4sg6usu7fyxf3s6dislwtehxgn3bkcnpsya", byteSize: "794")\;
+  \dk.asset(path: "dry-run.txt", value-id: "a42mei4w2f75qdop3qvbqplqctmzya6k25q2l6myccitspde4fufq", byteSize: "794")\;
 
 ## GitHub remote execution flow
 
@@ -79,9 +79,9 @@ The detailed orchestration has three phases:
    - Resolve host tools (`git`, `gh`) by probing the requested program first,
      then on Windows falling back to generated wrapper commands that extend
      `PATH` with known install directories when direct lookup fails.
-   - Identify local assets whose mirrors are all strictly inside the user project
-     directory (via `request.ui.assets`, which rejects any local origin that
-     escapes the project root) and stage their source files for encryption.
+   - Identify local valuestore assets and bundles (`a*` and `b*`) whose mirrors
+     are all strictly inside the user project directory. Reject any local origin
+     that escapes the project root.
 
 2. **Stage release publication**
 
@@ -94,10 +94,9 @@ The detailed orchestration has three phases:
    - Tag and push `0.1.<TS>-stage`.
    - GitHub Actions creates a prerelease for the stage tag whose description is
      the audited command line.
-   - After the stage prerelease exists, the local orchestrator encrypts each
-     local asset's source file for the verified `dk_session_recipient` and
-     uploads the ciphertext to that release. A committed manifest (covered by the
-     signed `INDEX`) maps each encrypted blob to its local source path.
+   - After the stage prerelease exists, the local orchestrator uploads the
+     staged `a*` and `b*` valuestore files to that release, encrypting each file
+     for the verified `dk_session_recipient`.
 
 3. **Exec publication and result retrieval**
 
@@ -116,12 +115,11 @@ The detailed orchestration has three phases:
    - The local orchestrator waits for the exec workflow run matching the pushed
      commit (`headSha`), downloads `dk-session-result.txt`, prints the remote
      stdout/stderr, and propagates the remote exit code.
-   - For local-asset commands, GitHub Actions decrypts each staged source with
-     the `DK_SESSION_KEY` secret into its project-relative path (per the signed
-     manifest, rejecting absolute or parent-relative paths) before running, so
-     remote `get-asset`/`run-object`/`get-bundle` of local assets resolve their
-     content. Commands needing only the committed workspace (e.g. `lua`, `test`)
-     ship no encrypted assets.
+   - NOTE: encrypting and staging local `a*`/`b*` valuestore assets for the
+     runner (so remote `get-asset`/`run-object`/`get-bundle` of local assets can
+     resolve their content) is the planned Age-encryption layer and is not yet
+     implemented; commands that need only the committed workspace (e.g. `lua`,
+     `test`) work today.
 
 ### Files needed in the project tree
 
