@@ -1,8 +1,8 @@
-name: CommonsBase_Remote@0.1.x
+name: CommonsBase_Remote@0.2.x
 on:
   push:
     tags:
-      - '0.1.*'
+      - '0.2.*'
   workflow_dispatch:
 
 jobs:
@@ -27,8 +27,8 @@ jobs:
       - name: Distribute Modules
         uses: diskuv/dk-distribute@v3
         with:
-            pubkey: ${{ secrets.distribute_0_1_pubkey }}
-            seckey: ${{ secrets.distribute_0_1_seckey }}
+            pubkey: ${{ secrets.distribute_0_2_pubkey }}
+            seckey: ${{ secrets.distribute_0_2_seckey }}
             options: -nosysinc
             store: release
             standalone: true

@@ -1,0 +1,38 @@
+{
+  "continuations": {
+    "attestation": {
+      "openbsd_signify": {
+        "signature": "untrusted comment: signed by key 9bca286e6e4ac49c\nRWSbyihubkrEnLdo9AH04RJZ714p1MIQiA5DU4iWQ+WX9MWTpUyElWkmM5+FuDPM9bfdqAKouVpKOGPPCRALRXs9sVz4FoVk8g0=\n"
+      }
+    },
+    "continuations_to_sign": {
+      "0.3": {
+        "application": { "name": "dk0", "version": "2.4.2+rev-253" },
+        "openbsd_signify": {
+          "public_key": "untrusted comment: CommonsBase_Remote-0.3\nRWTo3jIeX0LIZFvpyXruLLKLJb3Q1lJR2rIS8HvRCDh88MGzDP+tVKgx\n"
+        }
+      },
+      "0.4": {
+        "application": { "name": "dk0", "version": "2.4.2+rev-253" },
+        "openbsd_signify": {
+          "public_key": "untrusted comment: CommonsBase_Remote-0.4\nRWRWhoFBwBmyYdXlyoS67Q4xv7YvKGpeycFmViUNwFxLLURyoz/x69fA\n"
+        }
+      },
+      "1.0": {
+        "application": { "name": "dk0", "version": "2.4.2+rev-253" },
+        "openbsd_signify": {
+          "public_key": "untrusted comment: CommonsBase_Remote-1.0\nRWQPwgJOQIQQiI6sfmN5jBJcUo1D3iB6gMrhUaNzhCJs7bHgYcNueH5A\n"
+        }
+      }
+    }
+  },
+  "id": "CommonsBase_Remote@0.2.0",
+  "license": { "spdx": "ISC" },
+  "producer": {
+    "application": { "name": "dk0", "version": "2.4.2+rev-253" },
+    "github_slsa_v1_l2": { "repository": "dkpkg/CommonsBase_Remote" },
+    "openbsd_signify": {
+      "public_key": "untrusted comment: CommonsBase_Remote-0.2\nRWSbyihubkrEnJfNXK8Yf+4ZkOZnoz8wzt9cG8eljceUIlsImGciwv6V\n"
+    }
+  }
+}
