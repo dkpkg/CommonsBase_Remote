@@ -1,11 +1,11 @@
 local M = {
-  id = "CommonsBase_Remote.GitHub@0.1.0"
+  id = "CommonsBase_Remote.GitHub@0.2.0"
 }
 
 -- lua-ml does not support local functions.
 -- And if the variable was "local" it would be nil inside the rules/uirules function bodies.
 -- So a should-be-unique global is used instead.
-CommonsBase_Remote__GitHub__0_1_0 = {}
+CommonsBase_Remote__GitHub__0_2_0 = {}
 
 -- lua-ml implements an old Lua dialect with no boolean literals: a bare `true`
 -- is an undefined global (nil/falsy) and `false` likewise. This silently breaks
@@ -17,7 +17,7 @@ false = nil
 
 rules, uirules = build.newrules(M)
 
-function CommonsBase_Remote__GitHub__0_1_0.parse_positive_int(name, value, default)
+function CommonsBase_Remote__GitHub__0_2_0.parse_positive_int(name, value, default)
   if value == nil then
     return default
   end
@@ -26,14 +26,14 @@ function CommonsBase_Remote__GitHub__0_1_0.parse_positive_int(name, value, defau
   return parsed
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.user_scalar(value)
+function CommonsBase_Remote__GitHub__0_2_0.user_scalar(value)
   if type(value) == "table" then
     return value[1]
   end
   return value
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.parse_timestamp(value)
+function CommonsBase_Remote__GitHub__0_2_0.parse_timestamp(value)
   if value == nil then
     return "19700101000000"
   end
@@ -48,7 +48,7 @@ function CommonsBase_Remote__GitHub__0_1_0.parse_timestamp(value)
   return value_s
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.normalize_repo(repo)
+function CommonsBase_Remote__GitHub__0_2_0.normalize_repo(repo)
   assert(type(repo) == "string" and repo ~= "", "Expected a repository like `github.com/OWNER/REPO`")
   local rest = repo
   if string.sub(repo, 1, 11) == "github.com/" then
@@ -68,27 +68,27 @@ function CommonsBase_Remote__GitHub__0_1_0.normalize_repo(repo)
   return "github.com/" .. owner .. "/" .. name
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
+function CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
   local p = {}
   local continued = request.continued or {}
-  local create_repo = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.create_repo)
-  local dry_run = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.dry_run)
+  local create_repo = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.create_repo)
+  local dry_run = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.dry_run)
   if create_repo == nil then
-    create_repo = CommonsBase_Remote__GitHub__0_1_0.user_scalar(continued.create_repo)
+    create_repo = CommonsBase_Remote__GitHub__0_2_0.user_scalar(continued.create_repo)
   end
   if dry_run == nil then
-    dry_run = CommonsBase_Remote__GitHub__0_1_0.user_scalar(continued.dry_run)
+    dry_run = CommonsBase_Remote__GitHub__0_2_0.user_scalar(continued.dry_run)
   end
-  local timestamp = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.timestamp)
-  p.workspace = assert(stringdk.sanitizesubpath(CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.workspace) or "dk.u"), "Expected `workspace=RELATIVE_PATH`")
-  p.sessions = CommonsBase_Remote__GitHub__0_1_0.parse_positive_int("sessions", CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.sessions), 4)
-  p.retention = CommonsBase_Remote__GitHub__0_1_0.parse_positive_int("retention", CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.retention), 8)
+  local timestamp = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.timestamp)
+  p.workspace = assert(stringdk.sanitizesubpath(CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.workspace) or "dk.u"), "Expected `workspace=RELATIVE_PATH`")
+  p.sessions = CommonsBase_Remote__GitHub__0_2_0.parse_positive_int("sessions", CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.sessions), 4)
+  p.retention = CommonsBase_Remote__GitHub__0_2_0.parse_positive_int("retention", CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.retention), 8)
   p.create_repo = create_repo ~= nil and tostring(create_repo) ~= "false" and tostring(create_repo) ~= "0"
   p.dryrun = dry_run ~= nil and tostring(dry_run) ~= "false" and tostring(dry_run) ~= "0"
-  p.timestamp = CommonsBase_Remote__GitHub__0_1_0.parse_timestamp(timestamp)
-  p.repo = CommonsBase_Remote__GitHub__0_1_0.normalize_repo(CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.repo) or "")
-  p.cmd = assert(CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.cmd), "Expected `cmd=COMMAND`")
-  p.commandvsl = assert(CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.commandvsl), "Expected `commandvsl=COMMAND`")
+  p.timestamp = CommonsBase_Remote__GitHub__0_2_0.parse_timestamp(timestamp)
+  p.repo = CommonsBase_Remote__GitHub__0_2_0.normalize_repo(CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.repo) or "")
+  p.cmd = assert(CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.cmd), "Expected `cmd=COMMAND`")
+  p.commandvsl = assert(CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.commandvsl), "Expected `commandvsl=COMMAND`")
   -- F-6: the audited command must stay on a single line so it cannot spoof or
   -- split the append-only audit log.
   assert(
@@ -97,27 +97,27 @@ function CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
   p.argv = request.user.argv or {}
   assert(type(p.argv) == "table", "Expected at least one `argv[]=...` entry")
   assert(next(p.argv) ~= nil, "Expected at least one `argv[]=...` entry")
-  p.requested_trace_key_id = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.requested_trace_key_id)
-  p.requested_trace_key_description = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.requested_trace_key_description)
-  local project_root = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.project_root)
+  p.requested_trace_key_id = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.requested_trace_key_id)
+  p.requested_trace_key_description = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.requested_trace_key_description)
+  local project_root = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.project_root)
   if project_root == nil then
-    project_root = CommonsBase_Remote__GitHub__0_1_0.user_scalar(continued.project_root)
+    project_root = CommonsBase_Remote__GitHub__0_2_0.user_scalar(continued.project_root)
   end
   p.project_root = project_root or ""
   -- gh defaults to the packaged GitHub CLI (bootstrapped in orchestrate_submit),
   -- not a host binary, so p.gh stays unset unless the caller supplies one; git
   -- stays a host program.
-  local gh_user = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.gh)
+  local gh_user = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.gh)
   p.gh = gh_user or "gh"
   p.gh_user_supplied = false
   if gh_user then
     p.gh_user_supplied = true
   end
-  p.git = CommonsBase_Remote__GitHub__0_1_0.user_scalar(request.user.git) or "git"
+  p.git = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.git) or "git"
   return p
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.make_dry_run_plan(p)
+function CommonsBase_Remote__GitHub__0_2_0.make_dry_run_plan(p)
   local orchestration_date = "20260527"
   local session_number = 1
   return {
@@ -136,17 +136,17 @@ function CommonsBase_Remote__GitHub__0_1_0.make_dry_run_plan(p)
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, rule_name)
+function CommonsBase_Remote__GitHub__0_2_0.write_plan(request, file, p, rule_name)
   local create_repo = "false"
   local dry_run = "false"
-  local plan = CommonsBase_Remote__GitHub__0_1_0.make_dry_run_plan(p)
+  local plan = CommonsBase_Remote__GitHub__0_2_0.make_dry_run_plan(p)
   if p.create_repo then
     create_repo = "true"
   end
   if p.dryrun then
     dry_run = "true"
   end
-  request.io.write(file, "[dry-run] CommonsBase_Remote.GitHub." .. rule_name .. "@0.1.0\n")
+  request.io.write(file, "[dry-run] CommonsBase_Remote.GitHub." .. rule_name .. "@0.2.0\n")
   request.io.write(file, "repo=" .. p.repo .. "\n")
   request.io.write(file, "workspace=" .. p.workspace .. "\n")
   request.io.write(file, "sessions=" .. tostring(p.sessions) .. "\n")
@@ -159,7 +159,7 @@ function CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, rule_nam
   request.io.write(file, "session_root_branch=" .. plan.session_root_branch .. "\n")
   request.io.write(file, "session_branch=" .. plan.session_branch .. "\n")
   request.io.write(file, "workflow_path=" .. plan.workflow_path .. "\n")
-  request.io.write(file, "workflow_generated_by=CommonsBase_Remote.GitHub@0.1.0\n")
+  request.io.write(file, "workflow_generated_by=CommonsBase_Remote.GitHub@0.2.0\n")
   request.io.write(file, "audit_path=" .. plan.audit_path .. "\n")
   request.io.write(file, "argv_path=" .. plan.argv_path .. "\n")
   request.io.write(file, "stage_index_path=" .. plan.stage_index_path .. "\n")
@@ -180,7 +180,7 @@ function CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, rule_nam
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.trim(s)
+function CommonsBase_Remote__GitHub__0_2_0.trim(s)
   s = s or ""
   local first = 1
   local last = string.len(s)
@@ -208,7 +208,7 @@ function CommonsBase_Remote__GitHub__0_1_0.trim(s)
   return string.sub(s, first, last)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.replace_all(s, needle, replacement)
+function CommonsBase_Remote__GitHub__0_2_0.replace_all(s, needle, replacement)
   local out = {}
   local i = 1
   local n = string.len(needle)
@@ -224,7 +224,7 @@ function CommonsBase_Remote__GitHub__0_1_0.replace_all(s, needle, replacement)
   return table.concat(out, "")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.base64_encode(s)
+function CommonsBase_Remote__GitHub__0_2_0.base64_encode(s)
   local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
   local out = {}
   local i = 1
@@ -256,21 +256,21 @@ function CommonsBase_Remote__GitHub__0_1_0.base64_encode(s)
   return table.concat(out, "")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.write_base64_lines(request, path, values)
-  CommonsBase_Remote__GitHub__0_1_0.write_text(request, path, CommonsBase_Remote__GitHub__0_1_0.base64_lines_text(values))
+function CommonsBase_Remote__GitHub__0_2_0.write_base64_lines(request, path, values)
+  CommonsBase_Remote__GitHub__0_2_0.write_text(request, path, CommonsBase_Remote__GitHub__0_2_0.base64_lines_text(values))
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.base64_lines_text(values)
+function CommonsBase_Remote__GitHub__0_2_0.base64_lines_text(values)
   local out = {}
   local i = 1
   while values[i] do
-    table.insert(out, CommonsBase_Remote__GitHub__0_1_0.base64_encode(values[i]))
+    table.insert(out, CommonsBase_Remote__GitHub__0_2_0.base64_encode(values[i]))
     i = i + 1
   end
   return table.concat(out, "\n") .. "\n"
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.lines(s)
+function CommonsBase_Remote__GitHub__0_2_0.lines(s)
   local t = {}
   s = s or ""
   local pos = 1
@@ -294,32 +294,32 @@ function CommonsBase_Remote__GitHub__0_1_0.lines(s)
   return t
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.first_line(s)
-  local lines = CommonsBase_Remote__GitHub__0_1_0.lines(s)
+function CommonsBase_Remote__GitHub__0_2_0.first_line(s)
+  local lines = CommonsBase_Remote__GitHub__0_2_0.lines(s)
   return lines[1] or ""
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.shell_quote(s)
+function CommonsBase_Remote__GitHub__0_2_0.shell_quote(s)
   if s == "" then
     return "''"
   end
   if string.find(s, "[^A-Za-z0-9_@%%+=:,./-]") then
-    return "'" .. CommonsBase_Remote__GitHub__0_1_0.replace_all(s, "'", "'\\''") .. "'"
+    return "'" .. CommonsBase_Remote__GitHub__0_2_0.replace_all(s, "'", "'\\''") .. "'"
   end
   return s
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.show_command(program, args)
+function CommonsBase_Remote__GitHub__0_2_0.show_command(program, args)
   local parts = { program }
   local i = 1
   while args[i] do
-    table.insert(parts, CommonsBase_Remote__GitHub__0_1_0.shell_quote(args[i]))
+    table.insert(parts, CommonsBase_Remote__GitHub__0_2_0.shell_quote(args[i]))
     i = i + 1
   end
   return table.concat(parts, " ")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options)
+function CommonsBase_Remote__GitHub__0_2_0.helper_envmods(options)
   local envmods = {}
   if options and options.envmods then
     local i = 1
@@ -332,15 +332,15 @@ function CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options)
   return envmods
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.capture(request, program, args, options)
+function CommonsBase_Remote__GitHub__0_2_0.capture(request, program, args, options)
   options = options or {}
   local allowfailure = options.allowfailure or options.allow_failure
-  print("+ " .. CommonsBase_Remote__GitHub__0_1_0.show_command(program, args))
+  print("+ " .. CommonsBase_Remote__GitHub__0_2_0.show_command(program, args))
   local request_options = {
     program = program,
     args = args,
     max_output_bytes = options.max_output_bytes or 16777211,
-    envmods = CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options),
+    envmods = CommonsBase_Remote__GitHub__0_2_0.helper_envmods(options),
   }
   if options.cwd then
     request_options.cwd = options.cwd
@@ -367,13 +367,13 @@ function CommonsBase_Remote__GitHub__0_1_0.capture(request, program, args, optio
   return result
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.spawn(request, program, args, options)
+function CommonsBase_Remote__GitHub__0_2_0.spawn(request, program, args, options)
   options = options or {}
-  print("+ " .. CommonsBase_Remote__GitHub__0_1_0.show_command(program, args))
+  print("+ " .. CommonsBase_Remote__GitHub__0_2_0.show_command(program, args))
   local request_options = {
     program = program,
     args = args,
-    envmods = CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options)
+    envmods = CommonsBase_Remote__GitHub__0_2_0.helper_envmods(options)
   }
   if options.cwd then
     request_options.cwd = options.cwd
@@ -391,7 +391,7 @@ function CommonsBase_Remote__GitHub__0_1_0.spawn(request, program, args, options
   assert(false, "Could not run `" .. program .. "`: " .. tostring(kind) .. ": " .. tostring(msg))
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.path_join(base, child)
+function CommonsBase_Remote__GitHub__0_2_0.path_join(base, child)
   local sep = "/"
   if string.find(base, "\\") then
     sep = "\\"
@@ -402,7 +402,7 @@ function CommonsBase_Remote__GitHub__0_1_0.path_join(base, child)
   return base .. sep .. child
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.is_windows(request)
+function CommonsBase_Remote__GitHub__0_2_0.is_windows(request)
   local abi = tostring(request.execution and request.execution.ABIv3 or "")
   if abi ~= "" then
     return string.sub(abi, 1, 8) == "Windows_"
@@ -420,7 +420,7 @@ function CommonsBase_Remote__GitHub__0_1_0.is_windows(request)
   return false
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.write_text(request, path, content)
+function CommonsBase_Remote__GitHub__0_2_0.write_text(request, path, content)
   local file = request.io.open(path, "w")
   request.io.write(file, content)
   local realpath = request.io.realpath(file)
@@ -428,7 +428,7 @@ function CommonsBase_Remote__GitHub__0_1_0.write_text(request, path, content)
   return realpath
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.dirname(path)
+function CommonsBase_Remote__GitHub__0_2_0.dirname(path)
   local i = string.len(path)
   while i >= 1 do
     local ch = string.sub(path, i, i)
@@ -440,29 +440,29 @@ function CommonsBase_Remote__GitHub__0_1_0.dirname(path)
   return ""
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.windows_quote(s)
+function CommonsBase_Remote__GitHub__0_2_0.windows_quote(s)
   s = tostring(s or "")
   if s == "" then
     return "\"\""
   end
   if string.find(s, "[ \t\"&|<>^()]") then
-    return "\"" .. CommonsBase_Remote__GitHub__0_1_0.replace_all(s, "\"", "\"\"") .. "\""
+    return "\"" .. CommonsBase_Remote__GitHub__0_2_0.replace_all(s, "\"", "\"\"") .. "\""
   end
   return s
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.windows_force_quote(s)
+function CommonsBase_Remote__GitHub__0_2_0.windows_force_quote(s)
   s = tostring(s or "")
-  return "\"" .. CommonsBase_Remote__GitHub__0_1_0.replace_all(s, "\"", "\"\"") .. "\""
+  return "\"" .. CommonsBase_Remote__GitHub__0_2_0.replace_all(s, "\"", "\"\"") .. "\""
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, options)
+function CommonsBase_Remote__GitHub__0_2_0.try_capture(request, program, args, options)
   options = options or {}
   local request_options = {
     program = program,
     args = args,
     max_output_bytes = options.max_output_bytes or 16777211,
-    envmods = CommonsBase_Remote__GitHub__0_1_0.helper_envmods(options),
+    envmods = CommonsBase_Remote__GitHub__0_2_0.helper_envmods(options),
   }
   if options.cwd then
     request_options.cwd = options.cwd
@@ -482,20 +482,20 @@ function CommonsBase_Remote__GitHub__0_1_0.try_capture(request, program, args, o
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, dir, name)
+function CommonsBase_Remote__GitHub__0_2_0.find_named_file_abs(request, dir, name)
   local entries = request.io.list(dir, "all")
   local i = 1
   while entries[i] do
     local entry = entries[i]
     if request.io.isdir(entry) then
-      local nested = CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, entry, name)
+      local nested = CommonsBase_Remote__GitHub__0_2_0.find_named_file_abs(request, entry, name)
       request.io.close(entry)
       if nested then
         return nested
       end
     elseif request.io.isfile(entry) then
       local rel = request.io.realpath(entry, { relative = 1 })
-      if CommonsBase_Remote__GitHub__0_1_0.basename(rel) == name then
+      if CommonsBase_Remote__GitHub__0_2_0.basename(rel) == name then
         local abs = request.io.realpath(entry)
         request.io.close(entry)
         return abs
@@ -507,8 +507,8 @@ function CommonsBase_Remote__GitHub__0_1_0.find_named_file_abs(request, dir, nam
   return nil
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
-  local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+function CommonsBase_Remote__GitHub__0_2_0.project_root_cmd(request)
+  local result = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     "cmd",
     { "/d", "/c", "cd" },
@@ -516,11 +516,11 @@ function CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
   if result.code ~= "0" then
     return ""
   end
-  return CommonsBase_Remote__GitHub__0_1_0.trim(CommonsBase_Remote__GitHub__0_1_0.first_line(result.stdout))
+  return CommonsBase_Remote__GitHub__0_2_0.trim(CommonsBase_Remote__GitHub__0_2_0.first_line(result.stdout))
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.project_root_sh(request)
-  local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+function CommonsBase_Remote__GitHub__0_2_0.project_root_sh(request)
+  local result = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     "pwd",
     {},
@@ -528,18 +528,18 @@ function CommonsBase_Remote__GitHub__0_1_0.project_root_sh(request)
   if result.code ~= "0" then
     return ""
   end
-  return CommonsBase_Remote__GitHub__0_1_0.trim(
-    CommonsBase_Remote__GitHub__0_1_0.first_line(result.stdout))
+  return CommonsBase_Remote__GitHub__0_2_0.trim(
+    CommonsBase_Remote__GitHub__0_2_0.first_line(result.stdout))
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-    return CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
+function CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
+  if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
+    return CommonsBase_Remote__GitHub__0_2_0.project_root_cmd(request)
   end
-  return CommonsBase_Remote__GitHub__0_1_0.project_root_sh(request)
+  return CommonsBase_Remote__GitHub__0_2_0.project_root_sh(request)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.normalize_program(program)
+function CommonsBase_Remote__GitHub__0_2_0.normalize_program(program)
   local s = tostring(program or "")
   if s == "" then
     return s
@@ -553,49 +553,49 @@ function CommonsBase_Remote__GitHub__0_1_0.normalize_program(program)
   return "./" .. s
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+function CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
   if snapshot_dir then
     -- dk0/dk0.cmd live at the snapshot root, so build the path directly from
     -- realpath(). Do NOT walk the snapshot here: request.io.list on a read-only
     -- directory handle is single-use (a second list returns nothing), and
     -- copy_project_dir_to_commit must do that one walk to stage the inputs.
     local root = request.io.realpath(snapshot_dir)
-    if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-      return CommonsBase_Remote__GitHub__0_1_0.normalize_program(root .. "\\dk0.cmd")
+    if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
+      return CommonsBase_Remote__GitHub__0_2_0.normalize_program(root .. "\\dk0.cmd")
     end
-    return CommonsBase_Remote__GitHub__0_1_0.normalize_program(
-      CommonsBase_Remote__GitHub__0_1_0.path_join(root, "dk0"))
+    return CommonsBase_Remote__GitHub__0_2_0.normalize_program(
+      CommonsBase_Remote__GitHub__0_2_0.path_join(root, "dk0"))
   end
-  local root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+  local root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
   if root ~= "" then
-    if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+    if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
       return root .. "\\dk0.cmd"
     end
-    return CommonsBase_Remote__GitHub__0_1_0.path_join(root, "dk0")
+    return CommonsBase_Remote__GitHub__0_2_0.path_join(root, "dk0")
   end
   return "./dk0"
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, args)
+function CommonsBase_Remote__GitHub__0_2_0.run_local_dk0(request, snapshot_dir, args)
   if snapshot_dir then
     local snapshot_root = request.io.realpath(snapshot_dir)
-    local snapshot_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
-    return CommonsBase_Remote__GitHub__0_1_0.capture(
+    local snapshot_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
+    return CommonsBase_Remote__GitHub__0_2_0.capture(
       request,
       snapshot_program,
       args,
       { cwd = snapshot_root })
   end
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
-    local root = CommonsBase_Remote__GitHub__0_1_0.project_root_cmd(request)
+  if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
+    local root = CommonsBase_Remote__GitHub__0_2_0.project_root_cmd(request)
     if root ~= "" then
       local cmdline = ".\\dk0.cmd"
       local i = 1
       while args[i] do
-        cmdline = cmdline .. " " .. CommonsBase_Remote__GitHub__0_1_0.windows_quote(args[i])
+        cmdline = cmdline .. " " .. CommonsBase_Remote__GitHub__0_2_0.windows_quote(args[i])
         i = i + 1
       end
-      local root_result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+      local root_result = CommonsBase_Remote__GitHub__0_2_0.try_capture(
         request,
         "cmd",
         { "/d", "/c", cmdline },
@@ -605,37 +605,37 @@ function CommonsBase_Remote__GitHub__0_1_0.run_local_dk0(request, snapshot_dir, 
       end
     end
   end
-  local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
-  return CommonsBase_Remote__GitHub__0_1_0.capture(
+  local local_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
+  return CommonsBase_Remote__GitHub__0_2_0.capture(
     request,
     local_program,
     args,
     { cwd = "." })
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir, p)
+function CommonsBase_Remote__GitHub__0_2_0.ensure_coreutils(request, snapshot_dir, p)
   local program = ".dk/r/c/.local/coreutils/coreutils.exe"
-  local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     program,
     { "--version" },
     { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
     local bootstrap_root = request.io.realpath(snapshot_dir)
-    local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+    local local_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
     local import_dir = "etc/dk/i"
     local project_root = p.project_root or ""
     if project_root == "" then
-      project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+      project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
     end
     if project_root ~= "" then
-      if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+      if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
         import_dir = project_root .. "\\etc\\dk\\i"
       else
-        import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
+        import_dir = CommonsBase_Remote__GitHub__0_2_0.path_join(project_root, "etc/dk/i")
       end
     end
-    CommonsBase_Remote__GitHub__0_1_0.capture(
+    CommonsBase_Remote__GitHub__0_2_0.capture(
       request,
       local_program,
       {
@@ -646,11 +646,11 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_di
         "-d", ".dk/r/c/.local/coreutils"
       },
       { cwd = bootstrap_root })
-    return CommonsBase_Remote__GitHub__0_1_0.path_join(
+    return CommonsBase_Remote__GitHub__0_2_0.path_join(
       bootstrap_root,
-      CommonsBase_Remote__GitHub__0_1_0.is_windows(request)
-        and CommonsBase_Remote__GitHub__0_1_0.windows_relpath(program)
-        or CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(program))
+      CommonsBase_Remote__GitHub__0_2_0.is_windows(request)
+        and CommonsBase_Remote__GitHub__0_2_0.windows_relpath(program)
+        or CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(program))
   end
   return program
 end
@@ -658,28 +658,28 @@ end
 -- The Age and GitHubCLI objects expose explicit per-host slots (there is no
 -- Release.execution_abi alias like Coreutils has), so resolve the slot for the
 -- orchestrator host. Both objects share these five slot names.
-function CommonsBase_Remote__GitHub__0_1_0.host_tool_slot(request)
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+function CommonsBase_Remote__GitHub__0_2_0.host_tool_slot(request)
+  if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
     return "Release.Windows_x86_64"
   end
   local os_slot = "Linux"
-  local uname_s = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local uname_s = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, "uname", { "-s" },
     { quiet = true, allowfailure = true, max_output_bytes = 4096 })
   if uname_s.code == "0" then
-    local os_name = CommonsBase_Remote__GitHub__0_1_0.trim(
-      CommonsBase_Remote__GitHub__0_1_0.first_line(uname_s.stdout))
+    local os_name = CommonsBase_Remote__GitHub__0_2_0.trim(
+      CommonsBase_Remote__GitHub__0_2_0.first_line(uname_s.stdout))
     if os_name == "Darwin" then
       os_slot = "Darwin"
     end
   end
   local arch_slot = "x86_64"
-  local uname_m = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local uname_m = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, "uname", { "-m" },
     { quiet = true, allowfailure = true, max_output_bytes = 4096 })
   if uname_m.code == "0" then
-    local arch = CommonsBase_Remote__GitHub__0_1_0.trim(
-      CommonsBase_Remote__GitHub__0_1_0.first_line(uname_m.stdout))
+    local arch = CommonsBase_Remote__GitHub__0_2_0.trim(
+      CommonsBase_Remote__GitHub__0_2_0.first_line(uname_m.stdout))
     if arch == "arm64" or arch == "aarch64" then
       arch_slot = "arm64"
     end
@@ -687,33 +687,33 @@ function CommonsBase_Remote__GitHub__0_1_0.host_tool_slot(request)
   return "Release." .. os_slot .. "_" .. arch_slot
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, relpath)
-  return CommonsBase_Remote__GitHub__0_1_0.path_join(
+function CommonsBase_Remote__GitHub__0_2_0.tool_abs_path(request, bootstrap_root, relpath)
+  return CommonsBase_Remote__GitHub__0_2_0.path_join(
     bootstrap_root,
-    CommonsBase_Remote__GitHub__0_1_0.is_windows(request)
-      and CommonsBase_Remote__GitHub__0_1_0.windows_relpath(relpath)
-      or CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(relpath))
+    CommonsBase_Remote__GitHub__0_2_0.is_windows(request)
+      and CommonsBase_Remote__GitHub__0_2_0.windows_relpath(relpath)
+      or CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(relpath))
 end
 
 -- Fetch a packaged object from CommonsBase_Build into a private local directory
 -- via the snapshot's dk0, mirroring ensure_coreutils. Age and gh pull in
 -- CommonsBase_Std.Extract to unpack, so both packages are trusted locally.
-function CommonsBase_Remote__GitHub__0_1_0.bootstrap_build_object(request, snapshot_dir, p, module_ver, subdir)
+function CommonsBase_Remote__GitHub__0_2_0.bootstrap_build_object(request, snapshot_dir, p, module_ver, subdir)
   local bootstrap_root = request.io.realpath(snapshot_dir)
-  local local_program = CommonsBase_Remote__GitHub__0_1_0.local_dk0_program(request, snapshot_dir)
+  local local_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
   local import_dir = "etc/dk/i"
   local project_root = p.project_root or ""
   if project_root == "" then
-    project_root = CommonsBase_Remote__GitHub__0_1_0.project_root_path(request)
+    project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
   end
   if project_root ~= "" then
-    if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+    if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
       import_dir = project_root .. "\\etc\\dk\\i"
     else
-      import_dir = CommonsBase_Remote__GitHub__0_1_0.path_join(project_root, "etc/dk/i")
+      import_dir = CommonsBase_Remote__GitHub__0_2_0.path_join(project_root, "etc/dk/i")
     end
   end
-  CommonsBase_Remote__GitHub__0_1_0.capture(
+  CommonsBase_Remote__GitHub__0_2_0.capture(
     request,
     local_program,
     {
@@ -721,7 +721,7 @@ function CommonsBase_Remote__GitHub__0_1_0.bootstrap_build_object(request, snaps
       "--trust-local-package", "CommonsBase_Std",
       "-I", import_dir,
       "get-object", module_ver,
-      "-s", CommonsBase_Remote__GitHub__0_1_0.host_tool_slot(request),
+      "-s", CommonsBase_Remote__GitHub__0_2_0.host_tool_slot(request),
       "-d", subdir
     },
     { cwd = bootstrap_root })
@@ -730,22 +730,22 @@ end
 
 -- Bootstrap the packaged Age tools (age + age-keygen). Returns a table of
 -- absolute program paths so later capture() calls resolve regardless of cwd.
-function CommonsBase_Remote__GitHub__0_1_0.ensure_age(request, snapshot_dir, p)
+function CommonsBase_Remote__GitHub__0_2_0.ensure_age(request, snapshot_dir, p)
   local exe = ""
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+  if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
     exe = ".exe"
   end
   local subdir = ".dk/r/c/.local/age"
   local age_rel = subdir .. "/bin/age" .. exe
   local keygen_rel = subdir .. "/bin/age-keygen" .. exe
-  local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, age_rel, { "--version" }, { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
-    local bootstrap_root = CommonsBase_Remote__GitHub__0_1_0.bootstrap_build_object(
+    local bootstrap_root = CommonsBase_Remote__GitHub__0_2_0.bootstrap_build_object(
       request, snapshot_dir, p, "CommonsBase_Build.Age@1.3.1", subdir)
     return {
-      age = CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, age_rel),
-      keygen = CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, keygen_rel)
+      age = CommonsBase_Remote__GitHub__0_2_0.tool_abs_path(request, bootstrap_root, age_rel),
+      keygen = CommonsBase_Remote__GitHub__0_2_0.tool_abs_path(request, bootstrap_root, keygen_rel)
     }
   end
   return { age = age_rel, keygen = keygen_rel }
@@ -753,26 +753,26 @@ end
 
 -- Bootstrap the packaged GitHub CLI. Returns the gh program path, mirroring
 -- ensure_coreutils' return convention.
-function CommonsBase_Remote__GitHub__0_1_0.ensure_gh(request, snapshot_dir, p)
+function CommonsBase_Remote__GitHub__0_2_0.ensure_gh(request, snapshot_dir, p)
   local exe = ""
-  if CommonsBase_Remote__GitHub__0_1_0.is_windows(request) then
+  if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
     exe = ".exe"
   end
   local subdir = ".dk/r/c/.local/gh"
   local gh_rel = subdir .. "/bin/gh" .. exe
-  local probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, gh_rel, { "--version" }, { quiet = true, allowfailure = true })
   if probe.code ~= "0" then
-    local bootstrap_root = CommonsBase_Remote__GitHub__0_1_0.bootstrap_build_object(
+    local bootstrap_root = CommonsBase_Remote__GitHub__0_2_0.bootstrap_build_object(
       request, snapshot_dir, p, "CommonsBase_Build.GitHubCLI@2.92.0", subdir)
-    return CommonsBase_Remote__GitHub__0_1_0.tool_abs_path(request, bootstrap_root, gh_rel)
+    return CommonsBase_Remote__GitHub__0_2_0.tool_abs_path(request, bootstrap_root, gh_rel)
   end
   return gh_rel
 end
 
 -- ===== Age session recipient key material (B2) =====
 
-function CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, prefix)
+function CommonsBase_Remote__GitHub__0_2_0.find_line_with_prefix(text, prefix)
   local start = 1
   local len = string.len(text)
   while start <= len do
@@ -784,7 +784,7 @@ function CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, prefix)
       line = string.sub(text, start)
     end
     if string.sub(line, 1, string.len(prefix)) == prefix then
-      return CommonsBase_Remote__GitHub__0_1_0.trim(line)
+      return CommonsBase_Remote__GitHub__0_2_0.trim(line)
     end
     if nl then
       start = nl + 1
@@ -795,12 +795,12 @@ function CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, prefix)
   return nil
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.gh_variable_get(request, p, ownerrepo, name)
-  local r = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+function CommonsBase_Remote__GitHub__0_2_0.gh_variable_get(request, p, ownerrepo, name)
+  local r = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, p.gh, { "variable", "get", name, "-R", ownerrepo },
     { quiet = true, allowfailure = true })
   if r.code == "0" then
-    local v = CommonsBase_Remote__GitHub__0_1_0.trim(r.stdout or "")
+    local v = CommonsBase_Remote__GitHub__0_2_0.trim(r.stdout or "")
     if v ~= "" then
       return v
     end
@@ -808,8 +808,8 @@ function CommonsBase_Remote__GitHub__0_1_0.gh_variable_get(request, p, ownerrepo
   return nil
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.gh_variable_set(request, p, ownerrepo, name, value)
-  CommonsBase_Remote__GitHub__0_1_0.capture(
+function CommonsBase_Remote__GitHub__0_2_0.gh_variable_set(request, p, ownerrepo, name, value)
+  CommonsBase_Remote__GitHub__0_2_0.capture(
     request, p.gh, { "variable", "set", name, "--body", value, "-R", ownerrepo },
     { quiet = true })
 end
@@ -817,54 +817,54 @@ end
 -- Set a repository secret without exposing its value in the process argument
 -- list: write a dotenv file into the gitignored t/c area, load it with
 -- `gh secret set -f`, then remove it.
-function CommonsBase_Remote__GitHub__0_1_0.gh_secret_set(request, p, ownerrepo, coreutils, name, value)
+function CommonsBase_Remote__GitHub__0_2_0.gh_secret_set(request, p, ownerrepo, coreutils, name, value)
   local env_rel = ".dk/r/c/t/c/dk-session-secret.env"
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(
     request, coreutils, env_rel, name .. "=" .. value .. "\n", "0600")
-  CommonsBase_Remote__GitHub__0_1_0.capture(
+  CommonsBase_Remote__GitHub__0_2_0.capture(
     request, p.gh, { "secret", "set", "-f", env_rel, "-R", ownerrepo },
     { quiet = true })
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, coreutils, { "rm", "-f", env_rel },
     { quiet = true, allowfailure = true })
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.b64_encode_path(request, coreutils, path)
-  local r = CommonsBase_Remote__GitHub__0_1_0.capture(
+function CommonsBase_Remote__GitHub__0_2_0.b64_encode_path(request, coreutils, path)
+  local r = CommonsBase_Remote__GitHub__0_2_0.capture(
     request, coreutils, { "base64", "-w", "0", path }, { quiet = true })
-  return CommonsBase_Remote__GitHub__0_1_0.trim(r.stdout or "")
+  return CommonsBase_Remote__GitHub__0_2_0.trim(r.stdout or "")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.b64_decode_to_path(request, coreutils, b64, out_rel)
+function CommonsBase_Remote__GitHub__0_2_0.b64_decode_to_path(request, coreutils, b64, out_rel)
   local enc_rel = out_rel .. ".b64"
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, enc_rel, b64 .. "\n", "0644")
-  local r = CommonsBase_Remote__GitHub__0_1_0.capture(
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, enc_rel, b64 .. "\n", "0644")
+  local r = CommonsBase_Remote__GitHub__0_2_0.capture(
     request, coreutils, { "base64", "-d", enc_rel }, { quiet = true })
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, out_rel, r.stdout or "", "0644")
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, out_rel, r.stdout or "", "0644")
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, coreutils, { "rm", "-f", enc_rel }, { quiet = true, allowfailure = true })
 end
 
 -- Run age-keygen and parse the public recipient plus the single-line secret key.
 -- The secret must never be logged; the capture is quiet and the value stays in
 -- memory only until stored as a GitHub secret.
-function CommonsBase_Remote__GitHub__0_1_0.age_generate(request, age)
-  local r = CommonsBase_Remote__GitHub__0_1_0.capture(request, age.keygen, {}, { quiet = true })
+function CommonsBase_Remote__GitHub__0_2_0.age_generate(request, age)
+  local r = CommonsBase_Remote__GitHub__0_2_0.capture(request, age.keygen, {}, { quiet = true })
   local text = r.stdout or ""
   local recipient = nil
   local pub_marker = "# public key: "
-  local pub_line = CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, pub_marker)
+  local pub_line = CommonsBase_Remote__GitHub__0_2_0.find_line_with_prefix(text, pub_marker)
   if pub_line then
-    recipient = CommonsBase_Remote__GitHub__0_1_0.trim(string.sub(pub_line, string.len(pub_marker) + 1))
+    recipient = CommonsBase_Remote__GitHub__0_2_0.trim(string.sub(pub_line, string.len(pub_marker) + 1))
   end
   if not recipient then
     local err_marker = "Public key: "
-    local err_line = CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(r.stderr or "", err_marker)
+    local err_line = CommonsBase_Remote__GitHub__0_2_0.find_line_with_prefix(r.stderr or "", err_marker)
     if err_line then
-      recipient = CommonsBase_Remote__GitHub__0_1_0.trim(string.sub(err_line, string.len(err_marker) + 1))
+      recipient = CommonsBase_Remote__GitHub__0_2_0.trim(string.sub(err_line, string.len(err_marker) + 1))
     end
   end
-  local secret = CommonsBase_Remote__GitHub__0_1_0.find_line_with_prefix(text, "AGE-SECRET-KEY-")
+  local secret = CommonsBase_Remote__GitHub__0_2_0.find_line_with_prefix(text, "AGE-SECRET-KEY-")
   assert(recipient and string.sub(recipient, 1, 4) == "age1",
     "age-keygen did not produce a public recipient")
   assert(secret, "age-keygen did not produce a secret key")
@@ -876,14 +876,14 @@ end
 -- live in repository variables. F-10: on every run the signed recipient variable
 -- is verified against the committed build public key before it is used to
 -- encrypt, and the rule fails closed when the variable is missing or unsigned.
-function CommonsBase_Remote__GitHub__0_1_0.ensure_session_recipient(request, ownerrepo, p, age, coreutils)
-  local recip_var = CommonsBase_Remote__GitHub__0_1_0.gh_variable_get(request, p, ownerrepo, "dk_session_recipient")
-  local sig_var = CommonsBase_Remote__GitHub__0_1_0.gh_variable_get(request, p, ownerrepo, "dk_session_recipient_sig")
+function CommonsBase_Remote__GitHub__0_2_0.ensure_session_recipient(request, ownerrepo, p, age, coreutils)
+  local recip_var = CommonsBase_Remote__GitHub__0_2_0.gh_variable_get(request, p, ownerrepo, "dk_session_recipient")
+  local sig_var = CommonsBase_Remote__GitHub__0_2_0.gh_variable_get(request, p, ownerrepo, "dk_session_recipient_sig")
   local msg_rel = ".dk/r/c/t/c/dk-session-recipient.txt"
   local sig_rel = ".dk/r/c/t/c/dk-session-recipient.sig"
   if recip_var and sig_var then
-    CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, msg_rel, recip_var .. "\n", "0644")
-    CommonsBase_Remote__GitHub__0_1_0.b64_decode_to_path(request, coreutils, sig_var, sig_rel)
+    CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, msg_rel, recip_var .. "\n", "0644")
+    CommonsBase_Remote__GitHub__0_2_0.b64_decode_to_path(request, coreutils, sig_var, sig_rel)
     local verified = request.ui.signify {
       operation = "verify",
       pubkey = ".dk/r/c/t/k/build.pub",
@@ -895,34 +895,51 @@ function CommonsBase_Remote__GitHub__0_1_0.ensure_session_recipient(request, own
     return recip_var
   end
   -- First run or key rotation: mint a recipient keypair and publish it.
-  local kp = CommonsBase_Remote__GitHub__0_1_0.age_generate(request, age)
-  CommonsBase_Remote__GitHub__0_1_0.gh_secret_set(request, p, ownerrepo, coreutils, "DK_SESSION_KEY", kp.secret)
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, msg_rel, kp.recipient .. "\n", "0644")
+  local kp = CommonsBase_Remote__GitHub__0_2_0.age_generate(request, age)
+  CommonsBase_Remote__GitHub__0_2_0.gh_secret_set(request, p, ownerrepo, coreutils, "DK_SESSION_KEY", kp.secret)
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, msg_rel, kp.recipient .. "\n", "0644")
   local signed = request.ui.signify {
     operation = "sign",
-    secret_key = ".dk/r/c/t/k/build.sec",
+    secret_key = ".dk/r/k/build.sec",
     message = msg_rel,
     signature = sig_rel
   }
   assert(signed, "Could not sign the session recipient")
-  local sig_b64 = CommonsBase_Remote__GitHub__0_1_0.b64_encode_path(request, coreutils, sig_rel)
-  CommonsBase_Remote__GitHub__0_1_0.gh_variable_set(request, p, ownerrepo, "dk_session_recipient", kp.recipient)
-  CommonsBase_Remote__GitHub__0_1_0.gh_variable_set(request, p, ownerrepo, "dk_session_recipient_sig", sig_b64)
+  local sig_b64 = CommonsBase_Remote__GitHub__0_2_0.b64_encode_path(request, coreutils, sig_rel)
+  CommonsBase_Remote__GitHub__0_2_0.gh_variable_set(request, p, ownerrepo, "dk_session_recipient", kp.recipient)
+  CommonsBase_Remote__GitHub__0_2_0.gh_variable_set(request, p, ownerrepo, "dk_session_recipient_sig", sig_b64)
   return kp.recipient
 end
 
 -- ===== Local asset staging + encryption (B3) =====
 
+-- The owning package of a module version id such as "Pkg.Sub.Name@1.0.0" is its
+-- first dotted segment.
+function CommonsBase_Remote__GitHub__0_2_0.package_of(module_ver)
+  local dot = string.find(module_ver, ".", 1, true)
+  if dot then
+    return string.sub(module_ver, 1, dot - 1)
+  end
+  local at = string.find(module_ver, "@", 1, true)
+  if at then
+    return string.sub(module_ver, 1, at - 1)
+  end
+  return module_ver
+end
+
 -- Enumerate workspace assets whose mirrors are all local (project-relative).
 -- request.ui.assets enforces F-12 containment (it rejects any local mirror that
 -- escapes the project root). Returns the local mirror paths (for snapshotting the
--- sources) and per-asset items { source_rel, cksum }: source_rel is the
--- project-relative source file (mirror/path) and cksum is a content hash used as
--- the encrypted blob name.
-function CommonsBase_Remote__GitHub__0_1_0.enumerate_local_assets(request)
+-- sources), per-asset items { source_rel, cksum } (source_rel is the
+-- project-relative source file mirror/path; cksum is the encrypted blob name),
+-- and the unique owning packages (which the runner must trust to resolve the
+-- local assets).
+function CommonsBase_Remote__GitHub__0_2_0.enumerate_local_assets(request)
   local assets = request.ui.assets {}
   local mirrors = {}
   local items = {}
+  local packages = {}
+  local seen_pkg = {}
   local i = 1
   while assets[i] do
     local a = assets[i]
@@ -932,44 +949,69 @@ function CommonsBase_Remote__GitHub__0_1_0.enumerate_local_assets(request)
         table.insert(mirrors, mp)
         local cksum = a.checksum.sha256 or a.checksum.blake2b256 or a.checksum.sha1
         table.insert(items, { source_rel = mp .. "/" .. a.path, cksum = cksum })
+        local pkg = CommonsBase_Remote__GitHub__0_2_0.package_of(a.id)
+        if not seen_pkg[pkg] then
+          seen_pkg[pkg] = true
+          table.insert(packages, pkg)
+        end
       end
     end
     i = i + 1
   end
-  return { mirrors = mirrors, items = items }
+  return { mirrors = mirrors, items = items, packages = packages }
 end
 
 -- Copy each local asset's source file out of the snapshot into a gitignored
 -- staging directory, named by its content hash. The plaintext bytes never enter
 -- the committed tree; they are encrypted for the runner after the stage release
--- exists. Returns the items { source_rel, cksum } for the manifest.
-function CommonsBase_Remote__GitHub__0_1_0.stage_local_assets(request, snapshot_dir, p, coreutils)
-  local locals = CommonsBase_Remote__GitHub__0_1_0.enumerate_local_assets(request)
+-- exists. Returns { items, packages }: items { source_rel, cksum } for the
+-- manifest, and the owning packages the runner must trust.
+function CommonsBase_Remote__GitHub__0_2_0.stage_local_assets(request, snapshot_dir, p, coreutils)
+  local locals = CommonsBase_Remote__GitHub__0_2_0.enumerate_local_assets(request)
   local items = locals.items
   if not items[1] then
-    return items
+    return { items = items, packages = locals.packages }
   end
   local snapshot_root = request.io.realpath(snapshot_dir)
   local stage_dir = ".dk/r/c/t/c/stage-assets"
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, coreutils, { "rm", "-rf", stage_dir }, { quiet = true, allowfailure = true })
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, coreutils, { "mkdir", "-p", stage_dir }, { quiet = true, allowfailure = true })
   local i = 1
   while items[i] do
     local item = items[i]
     local src = snapshot_root .. "/" .. item.source_rel
-    CommonsBase_Remote__GitHub__0_1_0.capture(
+    CommonsBase_Remote__GitHub__0_2_0.capture(
       request, coreutils, { "cp", src, stage_dir .. "/" .. item.cksum }, { quiet = true })
     i = i + 1
   end
-  return items
+  return { items = items, packages = locals.packages }
+end
+
+-- Prepend `--trust-local-package PKG` (one pair per package) to the forwarded
+-- argv so the runner's dk0 can resolve the consumer's local (unpublished)
+-- packages that own the staged local assets.
+function CommonsBase_Remote__GitHub__0_2_0.trust_prefixed_argv(argv, packages)
+  local out = {}
+  local i = 1
+  while packages[i] do
+    table.insert(out, "--trust-local-package")
+    table.insert(out, packages[i])
+    i = i + 1
+  end
+  local j = 1
+  while argv[j] do
+    table.insert(out, argv[j])
+    j = j + 1
+  end
+  return out
 end
 
 -- The committed manifest maps each encrypted blob (content hash) to the local
 -- source path where the runner decrypts it. It is integrity-protected by the
 -- signed INDEX, so the runner can trust the paths.
-function CommonsBase_Remote__GitHub__0_1_0.asset_manifest_text(items)
+function CommonsBase_Remote__GitHub__0_2_0.asset_manifest_text(items)
   local lines = {}
   local i = 1
   while items[i] do
@@ -982,16 +1024,16 @@ end
 -- Encrypt each staged source for the verified session recipient and upload the
 -- ciphertext to the stage release. Only the encrypted blobs leave the machine;
 -- the plaintext sources stay in the gitignored staging dir.
-function CommonsBase_Remote__GitHub__0_1_0.encrypt_and_upload_assets(request, ownerrepo, stage_tag, items, recipient, p, age)
+function CommonsBase_Remote__GitHub__0_2_0.encrypt_and_upload_assets(request, ownerrepo, stage_tag, items, recipient, p, age)
   local stage_dir = ".dk/r/c/t/c/stage-assets"
   local i = 1
   while items[i] do
     local cksum = items[i].cksum
     local plain = stage_dir .. "/" .. cksum
     local cipher = plain .. ".age"
-    CommonsBase_Remote__GitHub__0_1_0.capture(
+    CommonsBase_Remote__GitHub__0_2_0.capture(
       request, age.age, { "-r", recipient, "-o", cipher, plain }, { quiet = true })
-    CommonsBase_Remote__GitHub__0_1_0.capture(
+    CommonsBase_Remote__GitHub__0_2_0.capture(
       request, p.gh,
       { "release", "upload", stage_tag, cipher, "-R", ownerrepo, "--clobber" },
       { quiet = true })
@@ -999,7 +1041,7 @@ function CommonsBase_Remote__GitHub__0_1_0.encrypt_and_upload_assets(request, ow
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(path)
+function CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(path)
   path = tostring(path)
   local parts = {}
   local part_count = 0
@@ -1018,8 +1060,8 @@ function CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(path)
   return table.concat(parts)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.windows_relpath(path)
-  path = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(path)
+function CommonsBase_Remote__GitHub__0_2_0.windows_relpath(path)
+  path = CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(path)
   local parts = {}
   local part_count = 0
   local i = 1
@@ -1037,7 +1079,7 @@ function CommonsBase_Remote__GitHub__0_1_0.windows_relpath(path)
   return table.concat(parts)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ends_with(text, suffix)
+function CommonsBase_Remote__GitHub__0_2_0.ends_with(text, suffix)
   text = tostring(text or "")
   suffix = tostring(suffix or "")
   if suffix == "" then
@@ -1049,7 +1091,7 @@ function CommonsBase_Remote__GitHub__0_1_0.ends_with(text, suffix)
   return string.sub(text, string.len(text) - string.len(suffix) + 1) == suffix
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.sort_strings(values)
+function CommonsBase_Remote__GitHub__0_2_0.sort_strings(values)
   local i = 2
   while values[i] do
     local value = values[i]
@@ -1063,7 +1105,7 @@ function CommonsBase_Remote__GitHub__0_1_0.sort_strings(values)
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(text)
+function CommonsBase_Remote__GitHub__0_2_0.extract_14_digit_timestamp(text)
   text = tostring(text or "")
   local start = 1
   while start <= string.len(text) - 13 do
@@ -1084,7 +1126,7 @@ function CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(text)
   return nil
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
+function CommonsBase_Remote__GitHub__0_2_0.synthetic_14_digit_timestamp(request)
   local symbol = tostring(request.rule.generatesymbol() or "")
   if symbol == "" then
     return "19700101000000"
@@ -1101,7 +1143,7 @@ function CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
   return table.concat(out, "")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.json_string_field(json_text, field_name)
+function CommonsBase_Remote__GitHub__0_2_0.json_string_field(json_text, field_name)
   local text = tostring(json_text or "")
   local needle = "\"" .. tostring(field_name or "") .. "\""
   local search_from = 1
@@ -1126,40 +1168,40 @@ function CommonsBase_Remote__GitHub__0_1_0.json_string_field(json_text, field_na
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, dest_rel, content, mode)
+function CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, dest_rel, content, mode)
   local temp_rel =
     "remote-github/generated-" ..
-    CommonsBase_Remote__GitHub__0_1_0.basename(dest_rel) ..
+    CommonsBase_Remote__GitHub__0_2_0.basename(dest_rel) ..
     "-" .. request.rule.generatesymbol() .. ".txt"
-  local temp_abs = CommonsBase_Remote__GitHub__0_1_0.write_text(request, temp_rel, content)
-  CommonsBase_Remote__GitHub__0_1_0.install_project_file(request, coreutils, temp_abs, dest_rel, mode)
+  local temp_abs = CommonsBase_Remote__GitHub__0_2_0.write_text(request, temp_rel, content)
+  CommonsBase_Remote__GitHub__0_2_0.install_project_file(request, coreutils, temp_abs, dest_rel, mode)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.install_project_file(request, coreutils, source_abs, dest_rel, mode)
-  local dest_dir = CommonsBase_Remote__GitHub__0_1_0.dirname(dest_rel)
+function CommonsBase_Remote__GitHub__0_2_0.install_project_file(request, coreutils, source_abs, dest_rel, mode)
+  local dest_dir = CommonsBase_Remote__GitHub__0_2_0.dirname(dest_rel)
   if dest_dir and dest_dir ~= "" and dest_dir ~= "." then
-    CommonsBase_Remote__GitHub__0_1_0.spawn(request, coreutils, { "mkdir", "-p", dest_dir })
+    CommonsBase_Remote__GitHub__0_2_0.spawn(request, coreutils, { "mkdir", "-p", dest_dir })
   end
-  CommonsBase_Remote__GitHub__0_1_0.spawn(request, coreutils, { "rm", "-f", dest_rel })
-  CommonsBase_Remote__GitHub__0_1_0.spawn(request, coreutils, { "cp", "-f", source_abs, dest_rel })
+  CommonsBase_Remote__GitHub__0_2_0.spawn(request, coreutils, { "rm", "-f", dest_rel })
+  CommonsBase_Remote__GitHub__0_2_0.spawn(request, coreutils, { "cp", "-f", source_abs, dest_rel })
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.copy_snapshot_file_to_project(request, coreutils, source_file, dest_rel)
+function CommonsBase_Remote__GitHub__0_2_0.copy_snapshot_file_to_project(request, coreutils, source_file, dest_rel)
   local source_abs = request.io.realpath(source_file)
-  CommonsBase_Remote__GitHub__0_1_0.install_project_file(request, coreutils, source_abs, dest_rel)
+  CommonsBase_Remote__GitHub__0_2_0.install_project_file(request, coreutils, source_abs, dest_rel)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, dir, p, copied, seen)
+function CommonsBase_Remote__GitHub__0_2_0.copy_project_dir_to_commit(request, dir, p, copied, seen)
   local entries = request.io.list(dir, "all")
   local i = 1
   while entries[i] do
     local entry = entries[i]
     if request.io.isdir(entry) then
-      CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, entry, p, copied, seen)
+      CommonsBase_Remote__GitHub__0_2_0.copy_project_dir_to_commit(request, entry, p, copied, seen)
     elseif request.io.isfile(entry) then
-      local source_rel = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(request.io.realpath(entry, { relative = 1 }))
-      local source_name = CommonsBase_Remote__GitHub__0_1_0.basename(source_rel)
-      local workspace_name = CommonsBase_Remote__GitHub__0_1_0.basename(CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(p.workspace))
+      local source_rel = CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(request.io.realpath(entry, { relative = 1 }))
+      local source_name = CommonsBase_Remote__GitHub__0_2_0.basename(source_rel)
+      local workspace_name = CommonsBase_Remote__GitHub__0_2_0.basename(CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(p.workspace))
       local rel = nil
       local dest_rel = nil
       if source_name == workspace_name then
@@ -1177,9 +1219,10 @@ function CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, d
       elseif source_name == "build.sec" then
         -- Match by basename like dk0/dk.u above: the snapshot-relative path may
         -- be project-root-relative ("t/k/build.sec") with no leading slash, so a
-        -- "/t/k/build.sec" suffix match would miss it. build.sec is local-only,
-        -- so it is copied (for commit-repo dk0 ops) but never tracked in `copied`.
-        dest_rel = ".dk/r/c/t/k/build.sec"
+        -- "/t/k/build.sec" suffix match would miss it. F-2: place the signing
+        -- secret in `.dk/r/k`, OUTSIDE the `.dk/r/c` commit repo, so no .gitignore
+        -- ordering race can ever stage it; it is never tracked in `copied`.
+        dest_rel = ".dk/r/k/build.sec"
         seen.buildsec = true
       elseif source_name == "build.pub" then
         rel = "t/k/build.pub"
@@ -1201,7 +1244,7 @@ function CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, d
         end
       end
       if dest_rel then
-        CommonsBase_Remote__GitHub__0_1_0.copy_snapshot_file_to_project(request, p.coreutils, entry, dest_rel)
+        CommonsBase_Remote__GitHub__0_2_0.copy_snapshot_file_to_project(request, p.coreutils, entry, dest_rel)
         if rel then
           table.insert(copied, rel)
         end
@@ -1212,18 +1255,18 @@ function CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, d
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_control_tree(request, coreutils)
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, ".dk/r/.gitignore", "*\n", "0644")
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, ".dk/r/.hgignore", "syntax: glob\n*\n", "0644")
+function CommonsBase_Remote__GitHub__0_2_0.ensure_control_tree(request, coreutils)
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, ".dk/r/.gitignore", "*\n", "0644")
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, ".dk/r/.hgignore", "syntax: glob\n*\n", "0644")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.collect_relative_files(request, dir, root, out, rel_prefix)
+function CommonsBase_Remote__GitHub__0_2_0.collect_relative_files(request, dir, root, out, rel_prefix)
   local entries = request.io.list(dir, "all")
   local i = 1
   while entries[i] do
     local entry = entries[i]
     if request.io.isdir(entry) then
-      CommonsBase_Remote__GitHub__0_1_0.collect_relative_files(
+      CommonsBase_Remote__GitHub__0_2_0.collect_relative_files(
         request,
         entry,
         root,
@@ -1239,7 +1282,7 @@ function CommonsBase_Remote__GitHub__0_1_0.collect_relative_files(request, dir, 
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
+function CommonsBase_Remote__GitHub__0_2_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
   local copied = {}
   local seen = {}
   p.coreutils = coreutils
@@ -1248,35 +1291,35 @@ function CommonsBase_Remote__GitHub__0_1_0.prepare_commit_repo_inputs(request, s
   -- earlier runs (e.g. a whole project tree); removing a known list is not enough
   -- and `git add -A` would re-commit them. The local-only `.local`, `t/c`, `t/d`,
   -- `t/k/build.sec` paths are gitignored (untracked) and so are not touched here.
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     p.git,
     { "-C", ".dk/r/c", "rm", "-r", "-f", "--ignore-unmatch", "." },
     { quiet = true, allowfailure = true })
   -- Re-create the ignore/attributes policy (the full rm above cleared it).
-  CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo_gitignore(request, coreutils, ".dk/r/c")
-  CommonsBase_Remote__GitHub__0_1_0.copy_project_dir_to_commit(request, snapshot_dir, p, copied, seen)
+  CommonsBase_Remote__GitHub__0_2_0.ensure_commit_repo_gitignore(request, coreutils, ".dk/r/c")
+  CommonsBase_Remote__GitHub__0_2_0.copy_project_dir_to_commit(request, snapshot_dir, p, copied, seen)
   return copied
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.write_windows_wrapper(request, wrapper_name, body)
-  return CommonsBase_Remote__GitHub__0_1_0.write_text(
+function CommonsBase_Remote__GitHub__0_2_0.write_windows_wrapper(request, wrapper_name, body)
+  return CommonsBase_Remote__GitHub__0_2_0.write_text(
     request,
     "remote-github/bin/" .. wrapper_name .. ".cmd",
     "@echo off\r\n" .. body .. "\r\n")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, wrapper_name, target)
+function CommonsBase_Remote__GitHub__0_2_0.wrap_windows_program(request, wrapper_name, target)
   local body = "if exist \"" .. target .. "\" goto found\r\n" ..
     "echo Could not find required program at " .. target .. " 1>&2\r\n" ..
     "exit /b 1\r\n" ..
     ":found\r\n" ..
     "\"" .. target .. "\" %*\r\n" ..
     "exit /b %ERRORLEVEL%"
-  return CommonsBase_Remote__GitHub__0_1_0.write_windows_wrapper(request, wrapper_name, body)
+  return CommonsBase_Remote__GitHub__0_2_0.write_windows_wrapper(request, wrapper_name, body)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(request, wrapper_name, command_name, fallback_dirs)
+function CommonsBase_Remote__GitHub__0_2_0.write_windows_path_wrapper(request, wrapper_name, command_name, fallback_dirs)
   local lines = {
     "setlocal"
   }
@@ -1293,19 +1336,19 @@ function CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(request, w
   table.insert(lines, ")")
   table.insert(lines, command_name .. " %*")
   table.insert(lines, "exit /b %ERRORLEVEL%")
-  return CommonsBase_Remote__GitHub__0_1_0.write_windows_wrapper(request, wrapper_name, table.concat(lines, "\r\n"))
+  return CommonsBase_Remote__GitHub__0_2_0.write_windows_wrapper(request, wrapper_name, table.concat(lines, "\r\n"))
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.resolve_programs(request, p)
+function CommonsBase_Remote__GitHub__0_2_0.resolve_programs(request, p)
   -- Only resolve a host gh when the caller supplied one; otherwise the packaged
   -- GitHub CLI is bootstrapped later (ensure_gh) and this probe is skipped.
   if p.gh_user_supplied then
-    local gh_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local gh_probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request, p.gh, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
     if gh_probe.code ~= "0" then
       if string.find(p.gh, " ", 1, true) then
-        local wrapped = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-gh", p.gh)
-        local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+        local wrapped = CommonsBase_Remote__GitHub__0_2_0.wrap_windows_program(request, "resolve-gh", p.gh)
+        local wrapped_probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
           request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
         if wrapped_probe.code == "0" then
           p.gh = wrapped
@@ -1313,23 +1356,23 @@ function CommonsBase_Remote__GitHub__0_1_0.resolve_programs(request, p)
       end
     end
   end
-  local git_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local git_probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, p.git, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
   if git_probe.code ~= "0" then
     if p.git == "git" then
-      local wrapped = CommonsBase_Remote__GitHub__0_1_0.write_windows_path_wrapper(
+      local wrapped = CommonsBase_Remote__GitHub__0_2_0.write_windows_path_wrapper(
         request,
         "resolve-git",
         "git",
         { "C:\\Program Files\\Git\\cmd", "C:\\Program Files\\Git\\bin" })
-      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+      local wrapped_probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
         request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
       if wrapped_probe.code == "0" then
         p.git = wrapped
       end
     elseif string.find(p.git, " ", 1, true) then
-      local wrapped = CommonsBase_Remote__GitHub__0_1_0.wrap_windows_program(request, "resolve-git", p.git)
-      local wrapped_probe = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+      local wrapped = CommonsBase_Remote__GitHub__0_2_0.wrap_windows_program(request, "resolve-git", p.git)
+      local wrapped_probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
         request, wrapped, { "--version" }, { quiet = true, allowfailure = true, max_output_bytes = 4096 })
       if wrapped_probe.code == "0" then
         p.git = wrapped
@@ -1338,14 +1381,14 @@ function CommonsBase_Remote__GitHub__0_1_0.resolve_programs(request, p)
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.read_text(request, path)
+function CommonsBase_Remote__GitHub__0_2_0.read_text(request, path)
   local file = request.io.open(path, "r")
   local content = request.io.read(file, "all")
   request.io.close(file)
   return content or ""
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.safe_name(s)
+function CommonsBase_Remote__GitHub__0_2_0.safe_name(s)
   local ok = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-"
   local out = {}
   local i = 1
@@ -1361,46 +1404,46 @@ function CommonsBase_Remote__GitHub__0_1_0.safe_name(s)
   return table.concat(out, "")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ownerrepo(repo)
+function CommonsBase_Remote__GitHub__0_2_0.ownerrepo(repo)
   local prefix = "github.com/"
   assert(string.sub(repo, 1, string.len(prefix)) == prefix, "Expected a repository like `github.com/OWNER/REPO`")
   return string.sub(repo, string.len(prefix) + 1)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p, coreutils)
+function CommonsBase_Remote__GitHub__0_2_0.now_utc(request, p, coreutils)
   -- Prefer the real current UTC time from packaged coreutils so each run gets a
   -- unique, monotonically increasing timestamp. lua-ml has no clock, and using
   -- HEAD's commit date (below) collides across re-runs on the same session
   -- branch because HEAD is the previous run's commit.
   if coreutils then
-    local dated = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local dated = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request, coreutils, { "date", "-u", "+%Y%m%d%H%M%S" },
       { quiet = true, allowfailure = true })
-    local ts = CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(dated.stdout)
+    local ts = CommonsBase_Remote__GitHub__0_2_0.extract_14_digit_timestamp(dated.stdout)
     if ts then
       return ts
     end
   end
-  local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local result = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, p.git, { "show", "-s", "--date=format:%Y%m%d%H%M%S", "--format=%cd", "HEAD" },
     { quiet = true, allowfailure = true })
-  local timestamp = CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(result.stdout)
+  local timestamp = CommonsBase_Remote__GitHub__0_2_0.extract_14_digit_timestamp(result.stdout)
   if not timestamp then
-    timestamp = CommonsBase_Remote__GitHub__0_1_0.extract_14_digit_timestamp(result.stderr)
+    timestamp = CommonsBase_Remote__GitHub__0_2_0.extract_14_digit_timestamp(result.stderr)
   end
   if not timestamp then
     -- Some wrapper scripts can make stdout/stderr capture unreliable for .cmd
     -- wrappers. Use a deterministic synthetic timestamp shape as fallback so
     -- stage/exec tag generation still proceeds.
-    timestamp = CommonsBase_Remote__GitHub__0_1_0.synthetic_14_digit_timestamp(request)
+    timestamp = CommonsBase_Remote__GitHub__0_2_0.synthetic_14_digit_timestamp(request)
   end
   assert(timestamp, "Could not derive a timestamp")
   return timestamp
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.workflow_yaml(session, keep)
+function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep)
   local template = table.concat({
-    "# Generated by CommonsBase_Remote.GitHub@0.1.0.",
+    "# Generated by CommonsBase_Remote.GitHub@0.2.0.",
     "# See dist-any.u/run.u for the detailed orchestration flow.",
     "name: dk-session.__SESSION__",
     "on:",
@@ -1592,19 +1635,19 @@ function CommonsBase_Remote__GitHub__0_1_0.workflow_yaml(session, keep)
     "              [ -n \"$oldtag\" ] && gh release delete \"$oldtag\" --cleanup-tag --yes",
     "            done",
   }, "\n") .. "\n"
-  template = CommonsBase_Remote__GitHub__0_1_0.replace_all(template, "__SESSION__", tostring(session))
-  template = CommonsBase_Remote__GitHub__0_1_0.replace_all(template, "__KEEP__", tostring(keep))
+  template = CommonsBase_Remote__GitHub__0_2_0.replace_all(template, "__SESSION__", tostring(session))
+  template = CommonsBase_Remote__GitHub__0_2_0.replace_all(template, "__KEEP__", tostring(keep))
   return template
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, tag, p)
+function CommonsBase_Remote__GitHub__0_2_0.wait_release(request, ownerrepo, tag, p)
   local attempt = 1
   while attempt <= 12 do
     print("Polling GitHub release " .. tag .. " (" .. tostring(attempt) .. "/12)")
-    local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local result = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request, p.gh, { "release", "view", tag, "-R", ownerrepo, "--json", "url" },
       { quiet = true })
-    local url = CommonsBase_Remote__GitHub__0_1_0.json_string_field(result.stdout, "url") or ""
+    local url = CommonsBase_Remote__GitHub__0_2_0.json_string_field(result.stdout, "url") or ""
     if result.code == "0" and url ~= "" then
       print("GitHub release: " .. url)
       return
@@ -1615,7 +1658,7 @@ function CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, tag,
   assert(false, "Timed out waiting for GitHub release " .. tag)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.workflow_base_name(workflow)
+function CommonsBase_Remote__GitHub__0_2_0.workflow_base_name(workflow)
   local base = tostring(workflow or "")
   if string.sub(base, -4) == ".yml" then
     base = string.sub(base, 1, string.len(base) - 4)
@@ -1625,18 +1668,18 @@ function CommonsBase_Remote__GitHub__0_1_0.workflow_base_name(workflow)
   return base
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.find_workflow_run(json_text)
+function CommonsBase_Remote__GitHub__0_2_0.find_workflow_run(json_text)
   local segment = json_text or ""
-  local status = CommonsBase_Remote__GitHub__0_1_0.json_string_field(segment, "status")
-  local conclusion = CommonsBase_Remote__GitHub__0_1_0.json_string_field(segment, "conclusion") or ""
-  local url = CommonsBase_Remote__GitHub__0_1_0.json_string_field(segment, "url")
+  local status = CommonsBase_Remote__GitHub__0_2_0.json_string_field(segment, "status")
+  local conclusion = CommonsBase_Remote__GitHub__0_2_0.json_string_field(segment, "conclusion") or ""
+  local url = CommonsBase_Remote__GitHub__0_2_0.json_string_field(segment, "url")
   if not status and (not url or url == "") then
     return nil
   end
   return { status = status, conclusion = conclusion, url = url }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.find_run_by_sha(json_text, head_sha)
+function CommonsBase_Remote__GitHub__0_2_0.find_run_by_sha(json_text, head_sha)
   -- `gh run list --json ...` returns a JSON array. Find the object whose
   -- headSha matches this push and read its fields from that object's chunk.
   -- (We parse in Lua rather than with `gh --jq`: the Windows gh wrapper routes
@@ -1656,23 +1699,23 @@ function CommonsBase_Remote__GitHub__0_1_0.find_run_by_sha(json_text, head_sha)
     end
     if string.find(chunk, needle, 1, true) then
       return {
-        status = CommonsBase_Remote__GitHub__0_1_0.json_string_field(chunk, "status"),
-        conclusion = CommonsBase_Remote__GitHub__0_1_0.json_string_field(chunk, "conclusion") or "",
-        url = CommonsBase_Remote__GitHub__0_1_0.json_string_field(chunk, "url") or ""
+        status = CommonsBase_Remote__GitHub__0_2_0.json_string_field(chunk, "status"),
+        conclusion = CommonsBase_Remote__GitHub__0_2_0.json_string_field(chunk, "conclusion") or "",
+        url = CommonsBase_Remote__GitHub__0_2_0.json_string_field(chunk, "url") or ""
       }
     end
   end
   return nil
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, head_sha, p)
+function CommonsBase_Remote__GitHub__0_2_0.wait_workflow(request, ownerrepo, branch, workflow, head_sha, p)
   -- Match the workflow run by the pushed commit SHA. Listing by branch alone
   -- races against stale runs (e.g. a previous push's run) that may still be the
   -- latest, so filter server-side on headSha for the run this push triggered.
   local attempt = 1
   while attempt <= 60 do
     print("Polling GitHub workflow " .. workflow .. " on " .. branch .. " for " .. tostring(head_sha) .. " (" .. tostring(attempt) .. "/60)")
-    local result = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local result = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request,
       p.gh,
       {
@@ -1681,7 +1724,7 @@ function CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, bra
       },
       { quiet = true })
     if result.code == "0" then
-      local found = CommonsBase_Remote__GitHub__0_1_0.find_run_by_sha(result.stdout, head_sha)
+      local found = CommonsBase_Remote__GitHub__0_2_0.find_run_by_sha(result.stdout, head_sha)
       if found and found.status then
         print("GitHub workflow status: " .. tostring(found.status) .. " conclusion: " .. tostring(found.conclusion))
         if found.url and found.url ~= "" then
@@ -1695,7 +1738,7 @@ function CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, bra
         print("GitHub workflow poll: no run yet for commit " .. tostring(head_sha))
       end
     else
-      local msg = CommonsBase_Remote__GitHub__0_1_0.trim(result.stderr or "")
+      local msg = CommonsBase_Remote__GitHub__0_2_0.trim(result.stderr or "")
       if msg ~= "" then
         print("GitHub workflow poll command failed with exit " .. tostring(result.code) .. ": " .. msg)
       else
@@ -1708,33 +1751,33 @@ function CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, bra
   assert(false, "Timed out waiting for workflow " .. workflow .. " on " .. branch)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.gh, { "auth", "status" }, { quiet = true })
+function CommonsBase_Remote__GitHub__0_2_0.ensure_repo(request, ownerrepo, p)
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.gh, { "auth", "status" }, { quiet = true })
   if p.create_repo then
-    local created = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local created = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request, p.gh, { "repo", "create", ownerrepo, "--private", "--confirm" }, { quiet = true })
     if created.code == "0" or string.find(created.stderr or "", "Name already exists on this account", 1, true) then
       return
     end
-    assert(false, "Could not create private repository " .. ownerrepo .. ": " .. CommonsBase_Remote__GitHub__0_1_0.trim(created.stderr))
+    assert(false, "Could not create private repository " .. ownerrepo .. ": " .. CommonsBase_Remote__GitHub__0_2_0.trim(created.stderr))
   end
-  local view = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local view = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, p.gh, { "repo", "view", ownerrepo, "--json", "nameWithOwner", "--jq", ".nameWithOwner" },
     { quiet = true })
   assert(view.code == "0", "Repository " .. ownerrepo .. " does not exist or is not visible; rerun with create_repo=true to create a private repository")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.commit_repo_root(request, commit_dir, p)
+function CommonsBase_Remote__GitHub__0_2_0.commit_repo_root(request, commit_dir, p)
   local attempt = 1
   while attempt <= 3 do
-    local actual_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local actual_root = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request,
       p.git,
       { "-C", commit_dir, "rev-parse", "--show-toplevel" },
       { quiet = true, allowfailure = true })
     if actual_root.code == "0" then
-      return CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
-        CommonsBase_Remote__GitHub__0_1_0.trim(actual_root.stdout or ""))
+      return CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(
+        CommonsBase_Remote__GitHub__0_2_0.trim(actual_root.stdout or ""))
     end
     if attempt < 3 then
       request.ui.sleep { seconds = 1 }
@@ -1744,51 +1787,51 @@ function CommonsBase_Remote__GitHub__0_1_0.commit_repo_root(request, commit_dir,
   return nil
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.commit_repo_is_isolated(request, commit_dir, p)
+function CommonsBase_Remote__GitHub__0_2_0.commit_repo_is_isolated(request, commit_dir, p)
   local commit_git_dir = commit_dir .. "/.git"
   if not (request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir)) then
     return false, nil
   end
-  local expected_root = CommonsBase_Remote__GitHub__0_1_0.normalize_relpath(
+  local expected_root = CommonsBase_Remote__GitHub__0_2_0.normalize_relpath(
     request.io.realpath(commit_dir))
   local actual_root =
-    CommonsBase_Remote__GitHub__0_1_0.commit_repo_root(request, commit_dir, p)
+    CommonsBase_Remote__GitHub__0_2_0.commit_repo_root(request, commit_dir, p)
   return actual_root == expected_root, actual_root
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
+function CommonsBase_Remote__GitHub__0_2_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
   local commit_git_dir = commit_dir .. "/.git"
   if request.io.isdir(commit_git_dir) or request.io.isfile(commit_git_dir) then
-    CommonsBase_Remote__GitHub__0_1_0.spawn(
+    CommonsBase_Remote__GitHub__0_2_0.spawn(
       request,
       coreutils,
       { "rm", "-rf", commit_git_dir })
   end
-  CommonsBase_Remote__GitHub__0_1_0.spawn(
+  CommonsBase_Remote__GitHub__0_2_0.spawn(
     request,
     coreutils,
     { "mkdir", "-p", commit_dir })
-  CommonsBase_Remote__GitHub__0_1_0.capture(
+  CommonsBase_Remote__GitHub__0_2_0.capture(
     request,
     p.git,
     { "-C", commit_dir, "init" })
-  local add_origin = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  local add_origin = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     p.git,
     { "-C", commit_dir, "remote", "add", "origin", "https://github.com/" .. ownerrepo .. ".git" },
     { quiet = true, allowfailure = true })
   if add_origin.code ~= "0" then
-    CommonsBase_Remote__GitHub__0_1_0.capture(
+    CommonsBase_Remote__GitHub__0_2_0.capture(
       request,
       p.git,
       { "-C", commit_dir, "remote", "set-url", "origin", "https://github.com/" .. ownerrepo .. ".git" })
   end
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "config", "user.name", "dk remote session" }, { quiet = true })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "config", "user.email", "dk-remote-session@users.noreply.github.com" }, { quiet = true })
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(request, p.git, { "-C", commit_dir, "fetch", "origin", "--prune", "--tags" }, { quiet = true, allowfailure = true })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "config", "user.name", "dk remote session" }, { quiet = true })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "config", "user.email", "dk-remote-session@users.noreply.github.com" }, { quiet = true })
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(request, p.git, { "-C", commit_dir, "fetch", "origin", "--prune", "--tags" }, { quiet = true, allowfailure = true })
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitignore_text()
+function CommonsBase_Remote__GitHub__0_2_0.commit_repo_gitignore_text()
   return table.concat({
     "# Local-only isolated commit-repo state",
     "t/k/build.sec",
@@ -1799,7 +1842,7 @@ function CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitignore_text()
   }, "\n")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitattributes_text()
+function CommonsBase_Remote__GitHub__0_2_0.commit_repo_gitattributes_text()
   -- The exec workflow verifies the committed files against a locally-computed
   -- INDEX (sha256). git EOL normalization must therefore be deterministic, so
   -- that what the Linux runner checks out is byte-identical to what was hashed
@@ -1826,28 +1869,28 @@ function CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitattributes_text()
   }, "\n")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo_gitignore(request, coreutils, commit_dir)
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+function CommonsBase_Remote__GitHub__0_2_0.ensure_commit_repo_gitignore(request, coreutils, commit_dir)
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(
     request,
     coreutils,
     commit_dir .. "/.gitignore",
-    CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitignore_text(),
+    CommonsBase_Remote__GitHub__0_2_0.commit_repo_gitignore_text(),
     "0644")
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(
     request,
     coreutils,
     commit_dir .. "/.gitattributes",
-    CommonsBase_Remote__GitHub__0_1_0.commit_repo_gitattributes_text(),
+    CommonsBase_Remote__GitHub__0_2_0.commit_repo_gitattributes_text(),
     "0644")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.reset_commit_repo_worktree(request, commit_dir, p)
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+function CommonsBase_Remote__GitHub__0_2_0.reset_commit_repo_worktree(request, commit_dir, p)
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     p.git,
     { "-C", commit_dir, "restore", "--staged", "--worktree", "--source=HEAD", "--", "." },
     { quiet = true, allowfailure = true })
-  CommonsBase_Remote__GitHub__0_1_0.try_capture(
+  CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     p.git,
     {
@@ -1865,49 +1908,49 @@ function CommonsBase_Remote__GitHub__0_1_0.reset_commit_repo_worktree(request, c
     { quiet = true, allowfailure = true })
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.stash_commit_repo_changes(request, commit_dir, p)
-  local status = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+function CommonsBase_Remote__GitHub__0_2_0.stash_commit_repo_changes(request, commit_dir, p)
+  local status = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request,
     p.git,
     { "-C", commit_dir, "status", "--porcelain=v1", "--untracked-files=all" },
     { quiet = true, allowfailure = true })
-  if CommonsBase_Remote__GitHub__0_1_0.trim(status.stdout) == "" then
+  if CommonsBase_Remote__GitHub__0_2_0.trim(status.stdout) == "" then
     return
   end
-  CommonsBase_Remote__GitHub__0_1_0.capture(
+  CommonsBase_Remote__GitHub__0_2_0.capture(
     request,
     p.git,
     { "-C", commit_dir, "stash", "push", "--all", "--message", "dk remote pre-sync" })
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.ensure_branches(request, commit_dir, sessions, p)
-  CommonsBase_Remote__GitHub__0_1_0.reset_commit_repo_worktree(request, commit_dir, p)
-  local has_root = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+function CommonsBase_Remote__GitHub__0_2_0.ensure_branches(request, commit_dir, sessions, p)
+  CommonsBase_Remote__GitHub__0_2_0.reset_commit_repo_worktree(request, commit_dir, p)
+  local has_root = CommonsBase_Remote__GitHub__0_2_0.try_capture(
     request, p.git, { "-C", commit_dir, "ls-remote", "--heads", "origin", "dk-session-root" },
     { quiet = true })
-  if CommonsBase_Remote__GitHub__0_1_0.trim(has_root.stdout) == "" then
-    CommonsBase_Remote__GitHub__0_1_0.try_capture(request, p.git, { "-C", commit_dir, "checkout", "--orphan", "dk-session-root" })
-    CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "commit", "--allow-empty", "-m", "Create dk-session root" })
-    CommonsBase_Remote__GitHub__0_1_0.try_capture(request, p.git, { "-C", commit_dir, "branch", "-M", "dk-session-root" })
-    CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "-u", "origin", "HEAD:refs/heads/dk-session-root" })
+  if CommonsBase_Remote__GitHub__0_2_0.trim(has_root.stdout) == "" then
+    CommonsBase_Remote__GitHub__0_2_0.try_capture(request, p.git, { "-C", commit_dir, "checkout", "--orphan", "dk-session-root" })
+    CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "commit", "--allow-empty", "-m", "Create dk-session root" })
+    CommonsBase_Remote__GitHub__0_2_0.try_capture(request, p.git, { "-C", commit_dir, "branch", "-M", "dk-session-root" })
+    CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "push", "-u", "origin", "HEAD:refs/heads/dk-session-root" })
   else
-    CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "checkout", "-B", "dk-session-root", "origin/dk-session-root" })
+    CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "checkout", "-B", "dk-session-root", "origin/dk-session-root" })
   end
   local i = 1
   while i <= sessions do
     local branch = "dk-session-" .. tostring(i)
-    local has_branch = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local has_branch = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request, p.git, { "-C", commit_dir, "ls-remote", "--heads", "origin", branch },
       { quiet = true })
-    if CommonsBase_Remote__GitHub__0_1_0.trim(has_branch.stdout) == "" then
-      CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "checkout", "-B", branch, "origin/dk-session-root" })
-      CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "-u", "origin", "HEAD:refs/heads/" .. branch })
+    if CommonsBase_Remote__GitHub__0_2_0.trim(has_branch.stdout) == "" then
+      CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "checkout", "-B", branch, "origin/dk-session-root" })
+      CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "push", "-u", "origin", "HEAD:refs/heads/" .. branch })
     end
     i = i + 1
   end
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.select_session(request, ownerrepo, sessions, p)
+function CommonsBase_Remote__GitHub__0_2_0.select_session(request, ownerrepo, sessions, p)
   local order = {}
   local seed_source = ownerrepo .. ":" .. tostring(p.timestamp or "")
   local seed = 0
@@ -1927,7 +1970,7 @@ function CommonsBase_Remote__GitHub__0_1_0.select_session(request, ownerrepo, se
     local session = order[i]
     local workflow = "dk-session." .. tostring(session) .. ".yml"
     local branch = "dk-session-" .. tostring(session)
-    local running = CommonsBase_Remote__GitHub__0_1_0.try_capture(
+    local running = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request,
       p.gh,
       {
@@ -1938,7 +1981,7 @@ function CommonsBase_Remote__GitHub__0_1_0.select_session(request, ownerrepo, se
     local found = nil
     if running.code == "0" then
       local combined = (running.stdout or "") .. "\n" .. (running.stderr or "")
-      found = CommonsBase_Remote__GitHub__0_1_0.find_workflow_run(combined)
+      found = CommonsBase_Remote__GitHub__0_2_0.find_workflow_run(combined)
     end
     if running.code ~= "0" or not found then
       return session
@@ -1949,39 +1992,41 @@ function CommonsBase_Remote__GitHub__0_1_0.select_session(request, ownerrepo, se
   assert(false, "No free dk remote GitHub session was available")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.write_checksum_manifest(request, clone_root, rel_paths, manifest_rel, coreutils)
+function CommonsBase_Remote__GitHub__0_2_0.write_checksum_manifest(request, clone_root, rel_paths, manifest_rel, coreutils)
   local lines = {}
   local i = 1
   while rel_paths[i] do
-    local meta = request.ui.checksum { path = CommonsBase_Remote__GitHub__0_1_0.path_join(clone_root, rel_paths[i]) }
+    local meta = request.ui.checksum { path = CommonsBase_Remote__GitHub__0_2_0.path_join(clone_root, rel_paths[i]) }
     table.insert(lines, meta.sha256 .. " *" .. rel_paths[i])
     i = i + 1
   end
-  CommonsBase_Remote__GitHub__0_1_0.sort_strings(lines)
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+  CommonsBase_Remote__GitHub__0_2_0.sort_strings(lines)
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(
     request,
     coreutils,
-    CommonsBase_Remote__GitHub__0_1_0.path_join(clone_root, manifest_rel),
+    CommonsBase_Remote__GitHub__0_2_0.path_join(clone_root, manifest_rel),
     table.concat(lines, "\n") .. "\n",
     "0644")
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.sign_file(request, clone_root, message_rel, signature_rel)
+function CommonsBase_Remote__GitHub__0_2_0.sign_file(request, clone_root, message_rel, signature_rel)
   local signed, msg = request.ui.signify {
     operation = "sign",
-    secret_key = CommonsBase_Remote__GitHub__0_1_0.path_join(clone_root, "t/k/build.sec"),
-    message = CommonsBase_Remote__GitHub__0_1_0.path_join(clone_root, message_rel),
-    signature = CommonsBase_Remote__GitHub__0_1_0.path_join(clone_root, signature_rel)
+    -- F-2: the signing secret lives outside the commit repo (.dk/r/k), not under
+    -- clone_root, so it can never be committed with the message/signature.
+    secret_key = ".dk/r/k/build.sec",
+    message = CommonsBase_Remote__GitHub__0_2_0.path_join(clone_root, message_rel),
+    signature = CommonsBase_Remote__GitHub__0_2_0.path_join(clone_root, signature_rel)
   }
   assert(signed, "Could not sign " .. message_rel .. ": " .. tostring(msg))
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.download_result(request, ownerrepo, tag, timestamp, p)
+function CommonsBase_Remote__GitHub__0_2_0.download_result(request, ownerrepo, tag, timestamp, p)
   -- Download the individual result files (not a zip/bundle). They are read back
   -- directly by path in the ui phase, which avoids both a package-namespaced
   -- result module (rejected by distribution enforcement) and any zip handling.
   local result_dir = ".dk/r/results/" .. timestamp
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.gh, {
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.gh, {
     "release", "download", tag, "-R", ownerrepo, "-D", result_dir,
     "-p", "dk-session-result.txt",
     "--clobber"
@@ -1989,7 +2034,7 @@ function CommonsBase_Remote__GitHub__0_1_0.download_result(request, ownerrepo, t
   return result_dir .. "/dk-session-result.txt"
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.basename(path)
+function CommonsBase_Remote__GitHub__0_2_0.basename(path)
   local i = string.len(path)
   while i >= 1 do
     local ch = string.sub(path, i, i)
@@ -2001,13 +2046,13 @@ function CommonsBase_Remote__GitHub__0_1_0.basename(path)
   return path
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.read_named_file(request, dir, name)
+function CommonsBase_Remote__GitHub__0_2_0.read_named_file(request, dir, name)
   local entries = request.io.list(dir, "all")
   local i = 1
   while entries[i] do
     local entry = entries[i]
     local rel = request.io.realpath(entry, { relative = 1 })
-    if request.io.isfile(entry) and CommonsBase_Remote__GitHub__0_1_0.basename(rel) == name then
+    if request.io.isfile(entry) and CommonsBase_Remote__GitHub__0_2_0.basename(rel) == name then
       local content = request.io.read(entry, "all") or ""
       request.io.close(entry)
       return content
@@ -2018,47 +2063,47 @@ function CommonsBase_Remote__GitHub__0_1_0.read_named_file(request, dir, name)
   return nil
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
-  local ownerrepo = CommonsBase_Remote__GitHub__0_1_0.ownerrepo(p.repo)
-  CommonsBase_Remote__GitHub__0_1_0.resolve_programs(request, p)
+function CommonsBase_Remote__GitHub__0_2_0.orchestrate_submit(request, p)
+  local ownerrepo = CommonsBase_Remote__GitHub__0_2_0.ownerrepo(p.repo)
+  CommonsBase_Remote__GitHub__0_2_0.resolve_programs(request, p)
   local snapshot_dir = request.continued and request.continued.project_snapshot
   assert(snapshot_dir, "Expected a project snapshot from the submit phase")
-  local coreutils = CommonsBase_Remote__GitHub__0_1_0.ensure_coreutils(request, snapshot_dir, p)
+  local coreutils = CommonsBase_Remote__GitHub__0_2_0.ensure_coreutils(request, snapshot_dir, p)
   if not p.gh_user_supplied then
-    p.gh = CommonsBase_Remote__GitHub__0_1_0.ensure_gh(request, snapshot_dir, p)
+    p.gh = CommonsBase_Remote__GitHub__0_2_0.ensure_gh(request, snapshot_dir, p)
   end
-  local age = CommonsBase_Remote__GitHub__0_1_0.ensure_age(request, snapshot_dir, p)
+  local age = CommonsBase_Remote__GitHub__0_2_0.ensure_age(request, snapshot_dir, p)
   local commit_dir = ".dk/r/c"
   local timestamp = p.timestamp
   if timestamp == "19700101000000" then
-    timestamp = CommonsBase_Remote__GitHub__0_1_0.now_utc(request, p, coreutils)
+    timestamp = CommonsBase_Remote__GitHub__0_2_0.now_utc(request, p, coreutils)
   end
 
-  CommonsBase_Remote__GitHub__0_1_0.ensure_repo(request, ownerrepo, p)
-  CommonsBase_Remote__GitHub__0_1_0.ensure_control_tree(request, coreutils)
-  CommonsBase_Remote__GitHub__0_1_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
-  CommonsBase_Remote__GitHub__0_1_0.ensure_branches(request, commit_dir, p.sessions, p)
-  CommonsBase_Remote__GitHub__0_1_0.stash_commit_repo_changes(request, commit_dir, p)
+  CommonsBase_Remote__GitHub__0_2_0.ensure_repo(request, ownerrepo, p)
+  CommonsBase_Remote__GitHub__0_2_0.ensure_control_tree(request, coreutils)
+  CommonsBase_Remote__GitHub__0_2_0.ensure_commit_repo(request, ownerrepo, commit_dir, coreutils, p)
+  CommonsBase_Remote__GitHub__0_2_0.ensure_branches(request, commit_dir, p.sessions, p)
+  CommonsBase_Remote__GitHub__0_2_0.stash_commit_repo_changes(request, commit_dir, p)
 
-  local selected = CommonsBase_Remote__GitHub__0_1_0.select_session(request, ownerrepo, p.sessions, p)
+  local selected = CommonsBase_Remote__GitHub__0_2_0.select_session(request, ownerrepo, p.sessions, p)
   local branch = "dk-session-" .. tostring(selected)
   local workflow = "dk-session." .. tostring(selected) .. ".yml"
   local stage_tag = "0.1." .. timestamp .. "-stage"
   local exec_tag = "0.1." .. timestamp .. "-exec"
 
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "checkout", "-B", branch, "origin/" .. branch })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "pull", "--rebase", "origin", branch })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "checkout", "-B", branch, "origin/" .. branch })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "pull", "--rebase", "origin", branch })
 
   -- prepare_commit_repo_inputs clears all tracked files (dropping any strays the
   -- session branch carries) and then re-creates the ignore/attributes policy and
   -- copies the intended inputs.
-  local copied = CommonsBase_Remote__GitHub__0_1_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
+  local copied = CommonsBase_Remote__GitHub__0_2_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
 
   -- Materialize any local-asset bundles into a gitignored staging area (from the
   -- snapshot, which holds the mirror sources) BEFORE the snapshot is closed. The
   -- plaintext bundle bytes never enter the committed tree; they are encrypted for
   -- the runner after the stage prerelease exists.
-  local staged_assets = CommonsBase_Remote__GitHub__0_1_0.stage_local_assets(request, snapshot_dir, p, coreutils)
+  local staged_assets = CommonsBase_Remote__GitHub__0_2_0.stage_local_assets(request, snapshot_dir, p, coreutils)
 
   -- The project snapshot is fully consumed once inputs are staged. Close it now,
   -- before the long-running remote phases (which can fail): dk requires every
@@ -2071,10 +2116,13 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
 
   -- Resolve the session recipient (verify-before-encrypt, F-10) only when there
   -- is local-asset content to encrypt. Commands that need only the committed
-  -- workspace (lua/test) skip the recipient and encryption entirely.
+  -- workspace (lua/test) skip the recipient and encryption entirely. When there
+  -- are local assets, forward `--trust-local-package` for their owning packages
+  -- so the runner's dk0 can resolve those local (unpublished) packages.
   local recipient = nil
-  if staged_assets[1] then
-    recipient = CommonsBase_Remote__GitHub__0_1_0.ensure_session_recipient(request, ownerrepo, p, age, coreutils)
+  if staged_assets.items[1] then
+    recipient = CommonsBase_Remote__GitHub__0_2_0.ensure_session_recipient(request, ownerrepo, p, age, coreutils)
+    p.argv = CommonsBase_Remote__GitHub__0_2_0.trust_prefixed_argv(p.argv, staged_assets.packages)
   end
 
   local audit_rel = "etc/dk/s/" .. tostring(selected) .. "-audit.txt"
@@ -2082,48 +2130,52 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   local stage_index_rel = "etc/dk/s/" .. tostring(selected) .. "-stage-index.txt"
   local stage_sig_rel = "etc/dk/s/" .. tostring(selected) .. "-stage-index.sig"
   local workflow_rel = ".github/workflows/" .. workflow
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(request, coreutils, commit_dir .. "/" .. audit_rel, timestamp .. "Z " .. p.commandvsl .. "\n", "0644")
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, commit_dir .. "/" .. audit_rel, timestamp .. "Z " .. p.commandvsl .. "\n", "0644")
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(
     request,
     coreutils,
     commit_dir .. "/" .. argv_rel,
-    CommonsBase_Remote__GitHub__0_1_0.base64_lines_text(p.argv),
+    CommonsBase_Remote__GitHub__0_2_0.base64_lines_text(p.argv),
     "0644")
-  CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+  CommonsBase_Remote__GitHub__0_2_0.write_project_text(
     request,
     coreutils,
     commit_dir .. "/" .. workflow_rel,
-    CommonsBase_Remote__GitHub__0_1_0.workflow_yaml(selected, p.retention),
+    CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(selected, p.retention),
     "0644")
-  CommonsBase_Remote__GitHub__0_1_0.write_checksum_manifest(request, commit_dir, { audit_rel, argv_rel, workflow_rel }, stage_index_rel, coreutils)
-  CommonsBase_Remote__GitHub__0_1_0.sign_file(request, commit_dir, stage_index_rel, stage_sig_rel)
-  CommonsBase_Remote__GitHub__0_1_0.capture(
+  CommonsBase_Remote__GitHub__0_2_0.write_checksum_manifest(request, commit_dir, { audit_rel, argv_rel, workflow_rel }, stage_index_rel, coreutils)
+  CommonsBase_Remote__GitHub__0_2_0.sign_file(request, commit_dir, stage_index_rel, stage_sig_rel)
+  CommonsBase_Remote__GitHub__0_2_0.capture(
     request,
     p.git,
     {
       "-C", commit_dir, "add",
       ".gitignore", audit_rel, argv_rel, stage_index_rel, stage_sig_rel, workflow_rel, "t/k/build.pub"
     })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "commit", "-m", "dk remote " .. timestamp .. " stage" })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "commit", "-m", "dk remote " .. timestamp .. " stage" })
   -- (lua-ml cannot index a call result directly, so use a temp variable)
-  local stage_head = CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "rev-parse", "HEAD" })
-  local stage_sha = CommonsBase_Remote__GitHub__0_1_0.trim(stage_head.stdout)
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "tag", stage_tag })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", branch })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", stage_tag })
-  CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, stage_sha, p)
-  CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, stage_tag, p)
+  local stage_head = CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "rev-parse", "HEAD" })
+  local stage_sha = CommonsBase_Remote__GitHub__0_2_0.trim(stage_head.stdout)
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "tag", stage_tag })
+  -- Push the tag BEFORE the branch: the workflow triggers on the branch push, and
+  -- its `Determine phase` step reads `git tag --points-at HEAD`, so the tag must
+  -- already be on the remote when the runner checks out (otherwise a race fails
+  -- the run with "Expected ... a dk-session stage or exec tag").
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", stage_tag })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", branch })
+  CommonsBase_Remote__GitHub__0_2_0.wait_workflow(request, ownerrepo, branch, workflow, stage_sha, p)
+  CommonsBase_Remote__GitHub__0_2_0.wait_release(request, ownerrepo, stage_tag, p)
 
   -- Encrypt the staged local-asset sources for the verified recipient and upload
   -- the ciphertext to the stage release, where the runner decrypts them. Commit a
   -- manifest (blob hash -> local source path) so the runner knows where to place
   -- each decrypted file; the manifest is integrity-protected by the signed INDEX.
   local assets_rel = "etc/dk/s/" .. tostring(selected) .. "-assets.txt"
-  if staged_assets[1] then
-    CommonsBase_Remote__GitHub__0_1_0.encrypt_and_upload_assets(request, ownerrepo, stage_tag, staged_assets, recipient, p, age)
-    CommonsBase_Remote__GitHub__0_1_0.write_project_text(
+  if staged_assets.items[1] then
+    CommonsBase_Remote__GitHub__0_2_0.encrypt_and_upload_assets(request, ownerrepo, stage_tag, staged_assets.items, recipient, p, age)
+    CommonsBase_Remote__GitHub__0_2_0.write_project_text(
       request, coreutils, commit_dir .. "/" .. assets_rel,
-      CommonsBase_Remote__GitHub__0_1_0.asset_manifest_text(staged_assets), "0644")
+      CommonsBase_Remote__GitHub__0_2_0.asset_manifest_text(staged_assets.items), "0644")
   end
 
   local manifest_paths = {}
@@ -2138,27 +2190,28 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   table.insert(manifest_paths, stage_sig_rel)
   table.insert(manifest_paths, workflow_rel)
   table.insert(manifest_paths, ".gitignore")
-  if staged_assets[1] then
+  if staged_assets.items[1] then
     table.insert(manifest_paths, assets_rel)
   end
-  CommonsBase_Remote__GitHub__0_1_0.write_checksum_manifest(request, commit_dir, manifest_paths, "INDEX", coreutils)
-  CommonsBase_Remote__GitHub__0_1_0.sign_file(request, commit_dir, "INDEX", "INDEX.sig")
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "add", "-A" })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "commit", "-m", "dk remote " .. timestamp .. " exec" })
-  local exec_head = CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "rev-parse", "HEAD" })
-  local exec_sha = CommonsBase_Remote__GitHub__0_1_0.trim(exec_head.stdout)
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "tag", exec_tag })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", branch })
-  CommonsBase_Remote__GitHub__0_1_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", exec_tag })
-  CommonsBase_Remote__GitHub__0_1_0.wait_workflow(request, ownerrepo, branch, workflow, exec_sha, p)
-  CommonsBase_Remote__GitHub__0_1_0.wait_release(request, ownerrepo, exec_tag, p)
-  local result_dir = CommonsBase_Remote__GitHub__0_1_0.download_result(request, ownerrepo, exec_tag, timestamp, p)
+  CommonsBase_Remote__GitHub__0_2_0.write_checksum_manifest(request, commit_dir, manifest_paths, "INDEX", coreutils)
+  CommonsBase_Remote__GitHub__0_2_0.sign_file(request, commit_dir, "INDEX", "INDEX.sig")
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "add", "-A" })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "commit", "-m", "dk remote " .. timestamp .. " exec" })
+  local exec_head = CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "rev-parse", "HEAD" })
+  local exec_sha = CommonsBase_Remote__GitHub__0_2_0.trim(exec_head.stdout)
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "tag", exec_tag })
+  -- Tag before branch (see the stage push above) so the runner sees the exec tag.
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", exec_tag })
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "push", "origin", branch })
+  CommonsBase_Remote__GitHub__0_2_0.wait_workflow(request, ownerrepo, branch, workflow, exec_sha, p)
+  CommonsBase_Remote__GitHub__0_2_0.wait_release(request, ownerrepo, exec_tag, p)
+  local result_dir = CommonsBase_Remote__GitHub__0_2_0.download_result(request, ownerrepo, exec_tag, timestamp, p)
   -- Present the result here in the submit phase, where the files were just
   -- downloaded. (The ui phase runs as a separate build task in a different tree,
   -- so a raw path would not survive; and a package-namespaced result bundle would
   -- be rejected by the distribution's module enforcement.) This prints the remote
   -- streams and propagates the remote exit code by failing the rule on non-zero.
-  CommonsBase_Remote__GitHub__0_1_0.present_result(request, coreutils, result_dir)
+  CommonsBase_Remote__GitHub__0_2_0.present_result(request, coreutils, result_dir)
   return {
     submit = {
       values = {
@@ -2173,11 +2226,11 @@ function CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
   }
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.read_path(request, coreutils, path)
+function CommonsBase_Remote__GitHub__0_2_0.read_path(request, coreutils, path)
   -- Read via packaged coreutils (a spawned command), not request.io: spawned
   -- programs run in the live process cwd where files like `.dk/r/results/...`
   -- were downloaded, whereas request.io resolves against the rule's virtual tree.
-  local r = CommonsBase_Remote__GitHub__0_1_0.capture(request, coreutils, { "cat", path }, { quiet = true })
+  local r = CommonsBase_Remote__GitHub__0_2_0.capture(request, coreutils, { "cat", path }, { quiet = true })
   return r.stdout or ""
 end
 
@@ -2185,7 +2238,7 @@ end
 -- code, but stdout/stderr content is whatever the remote command emitted). Strip
 -- ANSI CSI escape sequences and other control bytes (keeping tab/newline) so the
 -- output cannot rewrite the local terminal via escape codes.
-function CommonsBase_Remote__GitHub__0_1_0.sanitize_output(text)
+function CommonsBase_Remote__GitHub__0_2_0.sanitize_output(text)
   local out = {}
   local i = 1
   local len = string.len(text)
@@ -2216,14 +2269,14 @@ function CommonsBase_Remote__GitHub__0_1_0.sanitize_output(text)
   return table.concat(out)
 end
 
-function CommonsBase_Remote__GitHub__0_1_0.present_result(request, coreutils, result_file)
+function CommonsBase_Remote__GitHub__0_2_0.present_result(request, coreutils, result_file)
   -- Parse the combined result file produced on the runner:
   --   DKEXIT <code>\n<<<DKSTDOUT>>>\n<stdout>\n<<<DKSTDERR>>>\n<stderr>
-  local text = CommonsBase_Remote__GitHub__0_1_0.read_path(request, coreutils, result_file)
+  local text = CommonsBase_Remote__GitHub__0_2_0.read_path(request, coreutils, result_file)
   local exit_code = 0
-  local first = CommonsBase_Remote__GitHub__0_1_0.first_line(text)
+  local first = CommonsBase_Remote__GitHub__0_2_0.first_line(text)
   if first and string.sub(first, 1, 7) == "DKEXIT " then
-    exit_code = tonumber(CommonsBase_Remote__GitHub__0_1_0.trim(string.sub(first, 8))) or 0
+    exit_code = tonumber(CommonsBase_Remote__GitHub__0_2_0.trim(string.sub(first, 8))) or 0
   end
   local stdout_marker = "<<<DKSTDOUT>>>\n"
   local stderr_marker = "\n<<<DKSTDERR>>>\n"
@@ -2239,33 +2292,33 @@ function CommonsBase_Remote__GitHub__0_1_0.present_result(request, coreutils, re
   end
   if stdout_text and stdout_text ~= "" then
     print("----- remote stdout (runner-attested exit code; content is remote) -----")
-    print(CommonsBase_Remote__GitHub__0_1_0.sanitize_output(stdout_text))
+    print(CommonsBase_Remote__GitHub__0_2_0.sanitize_output(stdout_text))
   end
   if stderr_text and stderr_text ~= "" then
     print("----- remote stderr (runner-attested exit code; content is remote) -----")
-    print(CommonsBase_Remote__GitHub__0_1_0.sanitize_output(stderr_text))
+    print(CommonsBase_Remote__GitHub__0_2_0.sanitize_output(stderr_text))
   end
   assert(exit_code == 0, "Remote command exited with code " .. tostring(exit_code))
 end
 
 function rules.F_DryRunPlan(command, request)
-  local p = CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
+  local p = CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
   local path = "dry-run.txt"
   if not p.dryrun then
-    error("Only `dry_run=true` is implemented for CommonsBase_Remote.GitHub.F_DryRunPlan@0.1.0")
+    error("Only `dry_run=true` is implemented for CommonsBase_Remote.GitHub.F_DryRunPlan@0.2.0")
   end
   if command == "declareoutput" then
     return {
       declareoutput = {
         return_asset = {
-          id = "CommonsBase_Remote.GitHub.F_DryRunPlan.Output." .. request.rule.generatesymbol() .. "@0.1.0",
+          id = "CommonsBase_Remote.GitHub.F_DryRunPlan.Output." .. request.rule.generatesymbol() .. "@0.2.0",
           path = path
         }
       }
     }
   elseif command == "submit" then
     local file = request.io.open(path, "w")
-    CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, "F_DryRunPlan")
+    CommonsBase_Remote__GitHub__0_2_0.write_plan(request, file, p, "F_DryRunPlan")
     local origin, asset = request.io.toasset(file, {
       path = path,
       origin_name = "CommonsBase_Remote"
@@ -2288,7 +2341,7 @@ function rules.F_DryRunPlan(command, request)
 end
 
 function uirules.Run(command, request, continue_)
-  local p = CommonsBase_Remote__GitHub__0_1_0.parse_common_args(request)
+  local p = CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
   if command == "submit" then
     if p.dryrun then
       local bundle, getbundle = request.ui.glob {
@@ -2323,7 +2376,7 @@ function uirules.Run(command, request, continue_)
       }
       -- Include the sources of local assets (mirrors strictly inside the project)
       -- so the snapshot can materialize them for encrypted staging to the runner.
-      local locals = CommonsBase_Remote__GitHub__0_1_0.enumerate_local_assets(request)
+      local locals = CommonsBase_Remote__GitHub__0_2_0.enumerate_local_assets(request)
       local li = 1
       while locals.mirrors[li] do
         table.insert(patterns, locals.mirrors[li])
@@ -2363,14 +2416,14 @@ function uirules.Run(command, request, continue_)
         }
       }
     elseif continue_ == "orchestrate" then
-      return CommonsBase_Remote__GitHub__0_1_0.orchestrate_submit(request, p)
+      return CommonsBase_Remote__GitHub__0_2_0.orchestrate_submit(request, p)
     else
       assert(false, "Unsupported continuation state `" .. tostring(continue_) .. "`")
     end
   elseif command == "ui" then
     if p.dryrun then
       local file = request.io.open("dry-run-plan.txt", "w")
-      CommonsBase_Remote__GitHub__0_1_0.write_plan(request, file, p, "Run")
+      CommonsBase_Remote__GitHub__0_2_0.write_plan(request, file, p, "Run")
       request.io.close(file)
       file = request.io.open("dry-run-plan.txt", "r")
       local text = request.io.read(file, "all")
