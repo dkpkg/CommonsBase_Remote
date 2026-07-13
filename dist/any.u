@@ -9,6 +9,44 @@ mode. Running the free rule here distributes the entire scriptmodule.
   \test(pass)
   \dk.asset(path: "dry-run.txt", value-id: "atrrfkfvw2xzmtpbzzgucakqw4atdt2jtz7hbrgyjpt5hrjy7ioza", byteSize: "794")\;
 
+## The `remote` command (host side)
+
+`dk0 remote UI_MODULE@VERSION [OPTION=VALUE...] [REPOSITORY] INNER_COMMAND...`
+is thin sugar in the `dk0` host (`ShellRemote.ml`) over a plain
+`dk0 run <rule>` of this orchestration rule. The host does not run the inner
+command locally; it only forwards it. Concretely, `remote`:
+
+1. **Resolves the rule.** The `UI_MODULE@VERSION` is expanded to the full rule
+   id: a bare name like `GitHub@0.1.0` becomes
+   `CommonsBase_Remote.GitHub.Run@0.1.0` (the `_Remote` library suffix and the
+   `.Run` rule are added when missing).
+2. **Splits arguments.** Leading `OPTION=VALUE` pairs are separated from the
+   inner command, an optional `REPOSITORY` before a recognized inner command is
+   detected, and the inner command name is checked against the supported list
+   (`get-object`, `run-object`, `run-function`, `run-rule`, `enter-object`,
+   `merge-object`, `get-asset`, `run-asset`, `get-bundle`, `test`, `lua`,
+   `dialog`, `exec`, `run`).
+3. **Computes a requested trace key** for commands that produce
+   dependency-bearing values (`get-object`, `run-object`, `run-function`,
+   `run-rule`, `enter-object`, `merge-object`). Bundles and assets have no
+   dependencies, so they carry no requested trace key.
+4. **Builds the rule request parameters** and runs
+   `dk0 run CommonsBase_Remote.GitHub.Run@... <params>`, where the params are:
+   - `cmd=<inner command name>` and `commandvsl=<inner command as one quoted
+     line>` (the human-readable audit line),
+   - `requested_trace_key_id=...` / `requested_trace_key_description=...` when
+     applicable,
+   - the forwarded `OPTION=VALUE` remote options, `repo=<REPOSITORY>`, and
+     `project_root=<absolute project directory>`,
+   - **`argv[]=<token>` for every token of the inner command.** The argv is
+     forwarded verbatim; the runner's `dk0` re-parses it and resolves any
+     `$(...)`/`${...}` subshells and variables against the **remote** workspace,
+     never the local one. Local argument expansion is intentionally not applied
+     to the `remote` path.
+
+So everything below happens inside the `Run` rule, driven by those request
+parameters.
+
 ## GitHub remote execution flow
 
 The GitHub remote rule is designed so the user's project tree is only an input
