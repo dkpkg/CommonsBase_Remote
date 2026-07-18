@@ -104,6 +104,11 @@ function CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
     project_root = CommonsBase_Remote__GitHub__0_2_0.user_scalar(continued.project_root)
   end
   p.project_root = project_root or ""
+  -- Isolated-host import dir passed by `dk0 remote` when the orchestration rule
+  -- runs isolated under `.dk/r/h` (the consumer did not import the rule library).
+  -- The rule's own tool bootstrap resolves packages from here instead of the
+  -- consumer's `etc/dk/i`, which is left untouched (often empty) under isolation.
+  p.host_import_dir = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.host_import_dir) or ""
   -- gh defaults to the packaged GitHub CLI (bootstrapped in orchestrate_submit),
   -- not a host binary, so p.gh stays unset unless the caller supplies one; git
   -- stays a host program.
@@ -613,6 +618,29 @@ function CommonsBase_Remote__GitHub__0_2_0.run_local_dk0(request, snapshot_dir, 
     { cwd = "." })
 end
 
+-- Resolve the import directory that holds the packaged tool metadata
+-- (CommonsBase_Std / CommonsBase_Build). Under `dk0 remote` isolation those
+-- packages are imported into the isolated host workspace `.dk/r/h/etc/dk/i` and
+-- the consumer's own `etc/dk/i` is left untouched (often empty); prefer the
+-- isolated dir when it exists and fall back to the consumer's for the
+-- non-isolated "extend Remote" case.
+function CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, p)
+  if p.host_import_dir and p.host_import_dir ~= "" then
+    return p.host_import_dir
+  end
+  local project_root = p.project_root or ""
+  if project_root == "" then
+    project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
+  end
+  if project_root == "" then
+    return "etc/dk/i"
+  end
+  if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
+    return project_root .. "\\etc\\dk\\i"
+  end
+  return CommonsBase_Remote__GitHub__0_2_0.path_join(project_root, "etc/dk/i")
+end
+
 function CommonsBase_Remote__GitHub__0_2_0.ensure_coreutils(request, snapshot_dir, p)
   local program = ".dk/r/c/.local/coreutils/coreutils.exe"
   local probe = CommonsBase_Remote__GitHub__0_2_0.try_capture(
@@ -623,22 +651,12 @@ function CommonsBase_Remote__GitHub__0_2_0.ensure_coreutils(request, snapshot_di
   if probe.code ~= "0" then
     local bootstrap_root = request.io.realpath(snapshot_dir)
     local local_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
-    local import_dir = "etc/dk/i"
-    local project_root = p.project_root or ""
-    if project_root == "" then
-      project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
-    end
-    if project_root ~= "" then
-      if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
-        import_dir = project_root .. "\\etc\\dk\\i"
-      else
-        import_dir = CommonsBase_Remote__GitHub__0_2_0.path_join(project_root, "etc/dk/i")
-      end
-    end
+    local import_dir = CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, p)
     CommonsBase_Remote__GitHub__0_2_0.capture(
       request,
       local_program,
       {
+        "--keys-dir", ".dk/r/c/.local/hostkeys",
         "--trust-local-package", "CommonsBase_Std",
         "-I", import_dir,
         "get-object", "CommonsBase_Std.Coreutils@0.8.0",
@@ -701,22 +719,12 @@ end
 function CommonsBase_Remote__GitHub__0_2_0.bootstrap_build_object(request, snapshot_dir, p, module_ver, subdir)
   local bootstrap_root = request.io.realpath(snapshot_dir)
   local local_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
-  local import_dir = "etc/dk/i"
-  local project_root = p.project_root or ""
-  if project_root == "" then
-    project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
-  end
-  if project_root ~= "" then
-    if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
-      import_dir = project_root .. "\\etc\\dk\\i"
-    else
-      import_dir = CommonsBase_Remote__GitHub__0_2_0.path_join(project_root, "etc/dk/i")
-    end
-  end
+  local import_dir = CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, p)
   CommonsBase_Remote__GitHub__0_2_0.capture(
     request,
     local_program,
     {
+      "--keys-dir", ".dk/r/c/.local/hostkeys",
       "--trust-local-package", "CommonsBase_Build",
       "--trust-local-package", "CommonsBase_Std",
       "-I", import_dir,
