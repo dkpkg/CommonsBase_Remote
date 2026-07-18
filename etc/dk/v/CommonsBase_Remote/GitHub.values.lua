@@ -109,6 +109,11 @@ function CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
   -- The rule's own tool bootstrap resolves packages from here instead of the
   -- consumer's `etc/dk/i`, which is left untouched (often empty) under isolation.
   p.host_import_dir = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.host_import_dir) or ""
+  -- Whether dk0 was invoked with a terminal attached (host-passed `Unix.isatty`).
+  -- Only then may the rule launch the interactive `gh auth login`: without a TTY
+  -- that command prints a device code and blocks forever polling the browser, so
+  -- a non-interactive run must fail with actionable guidance instead.
+  p.interactive = (CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.interactive) == "true")
   -- gh defaults to the packaged GitHub CLI (bootstrapped in orchestrate_submit),
   -- not a host binary, so p.gh stays unset unless the caller supplies one; git
   -- stays a host program.
@@ -1757,8 +1762,42 @@ function CommonsBase_Remote__GitHub__0_2_0.wait_workflow(request, ownerrepo, bra
   assert(false, "Timed out waiting for workflow " .. workflow .. " on " .. branch)
 end
 
+function CommonsBase_Remote__GitHub__0_2_0.ensure_gh_authenticated(request, p, ownerrepo)
+  -- `dk0 remote` needs the GitHub CLI (and the git credential helper it backs)
+  -- to push the session branch, poll the workflow and download the result;
+  -- without credentials those steps otherwise fail deep in the orchestration
+  -- with an opaque non-zero git/gh exit. Check auth up front. gh reads both
+  -- GH_TOKEN and its own `gh auth login` config.
+  local auth = CommonsBase_Remote__GitHub__0_2_0.try_capture(
+    request, p.gh, { "auth", "status" }, { quiet = true, allowfailure = true })
+  if auth.code == "0" then
+    return
+  end
+  -- Unauthenticated. Only on an attached terminal may we launch the interactive
+  -- `gh auth login`: without a TTY it prints a device code and blocks forever
+  -- polling the browser (no one is there to complete it), which is exactly the
+  -- hang this check exists to avoid. So on a terminal, log in and re-check;
+  -- otherwise fall through to the actionable error.
+  if p.interactive then
+    print("GitHub CLI (gh) is not authenticated for " .. ownerrepo .. "; launching `gh auth login` ...")
+    CommonsBase_Remote__GitHub__0_2_0.spawn(request, p.gh, { "auth", "login" }, { allowfailure = true })
+    local recheck = CommonsBase_Remote__GitHub__0_2_0.try_capture(
+      request, p.gh, { "auth", "status" }, { quiet = true, allowfailure = true })
+    if recheck.code == "0" then
+      return
+    end
+    auth = recheck
+  end
+  -- lua-ml keeps `..` on a single line; build the message with an accumulator.
+  local m = "GitHub CLI (gh) is not authenticated, so `dk0 remote` cannot reach " .. ownerrepo .. ".\n"
+  m = m .. "Authenticate, then re-run:\n"
+  m = m .. "  - interactively: run `gh auth login`\n"
+  m = m .. "  - non-interactively / CI: set GH_TOKEN to a token with `repo` and `workflow` scopes\n"
+  m = m .. "gh reported: " .. CommonsBase_Remote__GitHub__0_2_0.trim(auth.stderr)
+  assert(false, m)
+end
+
 function CommonsBase_Remote__GitHub__0_2_0.ensure_repo(request, ownerrepo, p)
-  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.gh, { "auth", "status" }, { quiet = true })
   if p.create_repo then
     local created = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request, p.gh, { "repo", "create", ownerrepo, "--private", "--confirm" }, { quiet = true })
@@ -2079,6 +2118,7 @@ function CommonsBase_Remote__GitHub__0_2_0.orchestrate_submit(request, p)
   if not p.gh_user_supplied then
     p.gh = CommonsBase_Remote__GitHub__0_2_0.ensure_gh(request, snapshot_dir, p)
   end
+  CommonsBase_Remote__GitHub__0_2_0.ensure_gh_authenticated(request, p, ownerrepo)
   local age = CommonsBase_Remote__GitHub__0_2_0.ensure_age(request, snapshot_dir, p)
   local commit_dir = ".dk/r/c"
   local timestamp = p.timestamp
