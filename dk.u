@@ -1,3 +1,21 @@
+# CommonsBase_Remote
+
+## Overview
+
+dk remote-execution rules that let `dk0 remote ...` run a dk command on a GitHub Actions runner and return its result.
+
+`CommonsBase_Remote` provides the GitHub orchestration rule
+(`CommonsBase_Remote.GitHub`) consumed by `dk0 remote ...`. It snapshots
+the caller's workspace into an isolated commit directory, encrypts any
+local assets for a signify-signed per-repository age session key, and
+pushes tagged prereleases that drive a generated GitHub Actions workflow;
+it then waits for the run, downloads the combined result, and propagates
+the remote exit code.
+
+## License
+
+Apache-2.0
+
 ## workspace
   %% actual_version("2.4.2.279")
 
