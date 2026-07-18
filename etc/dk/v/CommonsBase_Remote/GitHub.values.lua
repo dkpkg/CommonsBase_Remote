@@ -104,6 +104,11 @@ function CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
     project_root = CommonsBase_Remote__GitHub__0_2_0.user_scalar(continued.project_root)
   end
   p.project_root = project_root or ""
+  -- Isolated-host import dir passed by `dk0 remote` when the orchestration rule
+  -- runs isolated under `.dk/r/h` (the consumer did not import the rule library).
+  -- The rule's own tool bootstrap resolves packages from here instead of the
+  -- consumer's `etc/dk/i`, which is left untouched (often empty) under isolation.
+  p.host_import_dir = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.host_import_dir) or ""
   -- gh defaults to the packaged GitHub CLI (bootstrapped in orchestrate_submit),
   -- not a host binary, so p.gh stays unset unless the caller supplies one; git
   -- stays a host program.
@@ -619,15 +624,16 @@ end
 -- the consumer's own `etc/dk/i` is left untouched (often empty); prefer the
 -- isolated dir when it exists and fall back to the consumer's for the
 -- non-isolated "extend Remote" case.
-function CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, project_root)
+function CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, p)
+  if p.host_import_dir and p.host_import_dir ~= "" then
+    return p.host_import_dir
+  end
+  local project_root = p.project_root or ""
+  if project_root == "" then
+    project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
+  end
   if project_root == "" then
     return "etc/dk/i"
-  end
-  local sep = CommonsBase_Remote__GitHub__0_2_0.is_windows(request) and "\\" or "/"
-  local iso = project_root .. sep .. ".dk" .. sep .. "r" .. sep .. "h" .. sep .. "etc" .. sep .. "dk" .. sep .. "i"
-  local ok, rp = pcall(function() return request.io.realpath(iso) end)
-  if ok and rp and rp ~= "" then
-    return iso
   end
   if CommonsBase_Remote__GitHub__0_2_0.is_windows(request) then
     return project_root .. "\\etc\\dk\\i"
@@ -645,11 +651,7 @@ function CommonsBase_Remote__GitHub__0_2_0.ensure_coreutils(request, snapshot_di
   if probe.code ~= "0" then
     local bootstrap_root = request.io.realpath(snapshot_dir)
     local local_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
-    local project_root = p.project_root or ""
-    if project_root == "" then
-      project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
-    end
-    local import_dir = CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, project_root)
+    local import_dir = CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, p)
     CommonsBase_Remote__GitHub__0_2_0.capture(
       request,
       local_program,
@@ -717,11 +719,7 @@ end
 function CommonsBase_Remote__GitHub__0_2_0.bootstrap_build_object(request, snapshot_dir, p, module_ver, subdir)
   local bootstrap_root = request.io.realpath(snapshot_dir)
   local local_program = CommonsBase_Remote__GitHub__0_2_0.local_dk0_program(request, snapshot_dir)
-  local project_root = p.project_root or ""
-  if project_root == "" then
-    project_root = CommonsBase_Remote__GitHub__0_2_0.project_root_path(request)
-  end
-  local import_dir = CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, project_root)
+  local import_dir = CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, p)
   CommonsBase_Remote__GitHub__0_2_0.capture(
     request,
     local_program,
