@@ -37,43 +37,9 @@ jobs:
             target-abi: Linux_x86_64
             experimental-mlfront-ref: ${{ github.ref_type != 'tag' && 'HEAD' }}
 
-      - name: Attest
-        id: attest
-        uses: actions/attest-build-provenance@v3
-        with: { subject-path: dk-dist/* }
-
-      # Publish the sigstore bundle beside values.json so a consumer fetches it
-      # with a plain download and needs no GitHub API token. Two things here are
-      # load-bearing:
-      #
-      # The bytes come from `gh attestation download`, NOT from
-      # steps.attest.outputs.bundle-path. A consumer re-serializes each bundle
-      # line into the values.json it imports, preserving member order, so the
-      # asset has to be byte-identical to what the API serves; gh writes
-      # protojson and the action's own output does not order members the same
-      # way. Publishing the wrong one changes what every consumer imports.
-      #
-      # It is staged outside dk-dist/, which both `subject-path` and `files`
-      # glob, so the attest step can never be handed its own output.
-      - name: Stage the attestation bundle
-        env:
-            GH_TOKEN: ${{ github.token }}
-        run: |
-            set -eu
-            mkdir -p dk-attest
-            n=0
-            until gh attestation download dk-dist/values.json -R "$GITHUB_REPOSITORY"; do
-              n=$((n + 1))
-              if [ "$n" -ge 5 ]; then exit 1; fi
-              sleep 5
-            done
-            digest=$(sha256sum dk-dist/values.json | cut -d' ' -f1)
-            mv "sha256:$digest.jsonl" dk-attest/values.json.sigstore.jsonl
-
-      - name: Release
-        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
-        with:
-            files: |
-                dk-dist/*
-                dk-attest/values.json.sigstore.jsonl
-            body_path: ".dist-CHANGELOG.txt"
+      # Attests the distribution, publishes the sigstore bundle for values.json
+      # as a release asset, and creates the release. A consumer then fetches
+      # that bundle beside values.json with a plain download, so importing this
+      # release needs no GitHub API token.
+      - name: Attest and Release
+        uses: diskuv/dk-distribute/attest-release@v3
