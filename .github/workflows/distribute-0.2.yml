@@ -29,7 +29,7 @@ jobs:
         with:
             pubkey: ${{ secrets.distribute_0_2_pubkey }}
             seckey: ${{ secrets.distribute_0_2_seckey }}
-            options: -nosysinc
+            options: -nosysinc --integrity checksum
             store: release
             standalone: true
             distscript: dist/any.u
