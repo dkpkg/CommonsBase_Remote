@@ -7,7 +7,7 @@ mode. Running the free rule here distributes the entire scriptmodule.
 
   $ run-function CommonsBase_Remote.GitHub.F_DryRunPlan@0.2.0 -f ${RUNTIME}/GitHub-0.2.0.plan.txt dry_run=true timestamp=20260527165106 repo=github.com/OWNER/REPO cmd=get-bundle commandvsl='get-bundle MlFront_Std.Sample.Abc@1.0.0' 'argv[]=get-bundle' 'argv[]=MlFront_Std.Sample.Abc@1.0.0'
   \test(pass)
-  \dk.asset(path: "dry-run.txt", value-id: "atrrfkfvw2xzmtpbzzgucakqw4atdt2jtz7hbrgyjpt5hrjy7ioza", byteSize: "794")\;
+  \dk.asset(path: "dry-run.txt", value-id: "aw63b2zkamczbsd5f4ndz23hlxh5aiygucc5xu3eo4v5nlcyml4mq", byteSize: "890")\;
 
 ## The `remote` command (host side)
 
@@ -46,6 +46,38 @@ command locally; it only forwards it. Concretely, `remote`:
 
 So everything below happens inside the `Run` rule, driven by those request
 parameters.
+
+## Execution and target ABI selection
+
+The `execution_abi=` and `target_abi=` remote options choose where the session
+runs and what it builds:
+
+- `execution_abi=` picks the GitHub-hosted execution platform. The supported
+  values are `Windows_x86_64` (the default; `runs-on: windows-latest`),
+  `Darwin_arm64` (`macos-latest`) and `Linux_x86_64` (`ubuntu-latest` inside
+  the manylinux container described below).
+- `target_abi=` names the ABI of the generated executables and libraries and
+  defaults to the execution ABI. When only `target_abi=` is given, the
+  execution ABI is derived from it: Windows targets (`Windows_x86_64`,
+  `Windows_x86`, `Windows_arm64`) build on `Windows_x86_64`; Darwin targets
+  (`Darwin_arm64`, `Darwin_x86_64`) build on `Darwin_arm64`; Linux targets
+  (`Linux_x86_64`, `Linux_x86`, `Linux_x86_64_musl`) build on `Linux_x86_64`.
+  When the target differs from the execution ABI the rule prepends
+  `--target-abi <TARGET>` to the audited argv, so the runner's `dk0` builds
+  for the requested target.
+- The runner labels and container images deliberately match the dk package
+  distribute workflows (`dk0 prepare-version --ci github`). Linux sessions run
+  inside a `quay.io/pypa/manylinux_2_28_x86_64` container (glibc 2.28): the
+  newest active dated tag is resolved from the quay.io tags API at submit time
+  and baked into the generated session workflow (dated tags are pruned from
+  quay.io after some months, so a static pin would rot), the maintained
+  `latest` tag is the fallback when that API is unreachable, and
+  `linux_image=IMAGE` overrides the image entirely. `Linux_x86_64_musl` builds
+  on the same glibc container; the target slot's musl cross toolchain comes
+  from the package's own values.
+- Windows session steps run under native PowerShell (`pwsh`, the
+  windows-latest default shell); Linux and macOS steps run under bash. The
+  `dk0.cmd`/`dk1.cmd` launchers are never invoked through a Unix shim.
 
 ## GitHub remote execution flow
 
@@ -126,9 +158,17 @@ The detailed orchestration has three phases:
    - Pick a free session branch by shuffling session numbers and skipping any
      session whose GitHub workflow is already running.
    - Append the audited command line to the session audit file in `.dk/r/c`.
-   - Commit the stage control files in `.dk/r/c`, including the audit line, the
-     argument transport, the signed stage manifest, and
-     `.github/workflows/dk-session.<i>.yml`.
+   - Commit the stage control files AND every staged input in `.dk/r/c`: the
+     audit line, the argument transport, the generated
+     `.github/workflows/dk-session.<i>.yml`, the workspace file, the
+     `dk0`/`dk0.cmd` and (when present) `dk1`/`dk1.cmd` launchers, the
+     `etc/dk/{d,i,v}` metadata and the ignore/attributes policy. The signed
+     stage index covers all of them, so the runner may execute the verified
+     launchers in the stage phase as well as the exec phase.
+   - Stage the `CommonsBase_Std` / `CommonsBase_Build` import metadata into
+     `.dk/r/c/etc/dk/i` (from the isolated host import directory when the
+     consumer has not imported those packages itself) so the runner's
+     `get-object` calls for the packaged tools resolve.
    - Tag and push `0.1.<TS>-stage`.
    - GitHub Actions creates a prerelease for the stage tag whose description is
      the audited command line.
@@ -144,6 +184,17 @@ The detailed orchestration has three phases:
      files, the signed `INDEX`, the committed signify verify public key, and the
      workflow file.
    - Tag and push `0.1.<TS>-exec`.
+   - The runner installs nothing from ad hoc URLs beyond the sha256-pinned
+     `mlfront-signify` bootstrap. After the signed stage index is verified,
+     the committed `dk1` launcher (or `dk0` when the consumer project has no
+     `dk1`) fetches the packaged GitHub CLI
+     (`CommonsBase_Build.GitHubCLI@2.92.0`) and, when local assets must be
+     decrypted, the packaged age (`CommonsBase_Build.Age@1.3.1`) with
+     `get-object -s Release.<execution abi>` into the gitignored `.local/`
+     directory — the same reserved namespace the local orchestrator uses for
+     its own tool bootstrap. An `actions/cache` step keyed on the execution
+     ABI and the pinned tool versions caches `.local/gh`, `.local/age` and the
+     launcher data home `.local/dkdata` across session runs.
    - GitHub Actions verifies `INDEX.sig` and the `INDEX` checksums with the
      committed signify public key, then removes that public key (the matching
      secret is never shipped) so the runner's `dk0` generates its own ephemeral
@@ -166,8 +217,9 @@ The detailed orchestration has three phases:
 
 | Path | Why needed |
 | --- | --- |
-| `dk.u` | Lists all the project directories needed remotely | 
+| `dk.u` | Lists all the project directories needed remotely |
 | `dk0` / `dk0.cmd` | Wrappers for local asset creation and remote command execution |
+| `dk1` / `dk1.cmd` | Optional launchers; when present they are staged and the runner uses them to fetch the packaged gh and age tools |
 
 ### Files placed into the project tree
 
@@ -183,6 +235,7 @@ user project tree.
 | `.dk/r/c/dk.u` | Copy of the user's workspace file so the remote session can reproduce the selected workspace inputs without reading from the original project tree at execution time. |
 | `.dk/r/c/dk0` | POSIX wrapper copied from the user's project so GitHub Actions can invoke the same public wrapper logic inside the isolated commit repository. |
 | `.dk/r/c/dk0.cmd` | Windows wrapper copied from the user's project for parity with the committed remote-session payload. |
+| `.dk/r/c/dk1` / `.dk/r/c/dk1.cmd` | Optional launcher copies; the runner uses them (falling back to `dk0`) to `get-object` the packaged gh and age tools. |
 | `.dk/r/c/etc/dk/d/` | Optional copy of distribution metadata required by the selected workspace. |
 | `.dk/r/c/etc/dk/i/` | Optional copy of import metadata required by the selected workspace. |
 | `.dk/r/c/etc/dk/v/` | Optional copy of value metadata required by the selected workspace. |

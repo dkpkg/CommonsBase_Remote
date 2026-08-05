@@ -68,6 +68,221 @@ function CommonsBase_Remote__GitHub__0_2_0.normalize_repo(repo)
   return "github.com/" .. owner .. "/" .. name
 end
 
+-- ===== Execution and target ABI selection =====
+-- The remote runner and container images deliberately match the dk package
+-- distribute workflows (`dk0 prepare-version --ci github`): Windows target ABIs
+-- build on windows-latest, Darwin target ABIs on macos-latest (Darwin_arm64
+-- execution), and Linux target ABIs on ubuntu-latest inside the pinned glibc
+-- 2.28 manylinux container. Linux_x86_64_musl keeps the Linux_x86_64 execution
+-- ABI: the target slot's musl cross toolchain comes from the package's own
+-- values.
+
+function CommonsBase_Remote__GitHub__0_2_0.execution_abi_for_target(target_abi)
+  if target_abi == "Windows_x86_64" or target_abi == "Windows_x86" or target_abi == "Windows_arm64" then
+    return "Windows_x86_64"
+  end
+  if target_abi == "Darwin_arm64" or target_abi == "Darwin_x86_64" then
+    return "Darwin_arm64"
+  end
+  if target_abi == "Linux_x86_64" or target_abi == "Linux_x86" or target_abi == "Linux_x86_64_musl" then
+    return "Linux_x86_64"
+  end
+  return nil
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.execution_runner(execution_abi)
+  if execution_abi == "Windows_x86_64" then
+    return "windows-latest", "windows"
+  end
+  if execution_abi == "Darwin_arm64" then
+    return "macos-latest", "macos"
+  end
+  if execution_abi == "Linux_x86_64" then
+    return "ubuntu-latest", "linux"
+  end
+  return nil, nil
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.resolve_abi_plan(execution_abi_opt, target_abi_opt)
+  local execution_abi = execution_abi_opt
+  local target_abi = target_abi_opt
+  if execution_abi ~= nil then
+    local runner_check = CommonsBase_Remote__GitHub__0_2_0.execution_runner(execution_abi)
+    assert(runner_check, "Unsupported `execution_abi=" .. tostring(execution_abi) .. "`. The GitHub-hosted execution platforms are Windows_x86_64 (windows-latest), Darwin_arm64 (macos-latest) and Linux_x86_64 (ubuntu-latest in the manylinux container).")
+  end
+  if target_abi ~= nil then
+    local expected = CommonsBase_Remote__GitHub__0_2_0.execution_abi_for_target(target_abi)
+    assert(expected, "Unsupported `target_abi=" .. tostring(target_abi) .. "`. The supported target ABIs are Windows_x86_64, Windows_x86, Windows_arm64, Darwin_arm64, Darwin_x86_64, Linux_x86_64, Linux_x86 and Linux_x86_64_musl.")
+    if execution_abi == nil then
+      execution_abi = expected
+    else
+      assert(execution_abi == expected, "`target_abi=" .. target_abi .. "` builds on `execution_abi=" .. expected .. "`, not `execution_abi=" .. execution_abi .. "`.")
+    end
+  end
+  if execution_abi == nil then
+    execution_abi = "Windows_x86_64"
+  end
+  if target_abi == nil then
+    target_abi = execution_abi
+  end
+  local runs_on, exec_os = CommonsBase_Remote__GitHub__0_2_0.execution_runner(execution_abi)
+  return {
+    execution_abi = execution_abi,
+    target_abi = target_abi,
+    runs_on = runs_on,
+    exec_os = exec_os
+  }
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.parse_linux_image(value, exec_os)
+  if value == nil then
+    return nil
+  end
+  local s = tostring(value)
+  assert(s ~= "", "Expected `linux_image=IMAGE` to name a container image")
+  assert(exec_os == "linux", "`linux_image=` applies only to Linux execution ABIs")
+  local i = 1
+  while i <= string.len(s) do
+    local b = string.byte(s, i)
+    local ok = false
+    if b >= 48 and b <= 57 then
+      ok = true
+    end
+    if b >= 65 and b <= 90 then
+      ok = true
+    end
+    if b >= 97 and b <= 122 then
+      ok = true
+    end
+    if b == 45 or b == 46 or b == 47 or b == 58 or b == 64 or b == 95 then
+      ok = true
+    end
+    assert(ok, "Unsupported character in the `linux_image=` value; allowed characters are letters, digits and `. _ / : @ -`")
+    i = i + 1
+  end
+  return s
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.plan_image_text(p)
+  if p.exec_os ~= "linux" then
+    return "-"
+  end
+  if p.linux_image then
+    return p.linux_image
+  end
+  return "quay.io/pypa/manylinux_2_28_x86_64:(resolved at submit)"
+end
+
+-- ===== Linux container image resolution =====
+-- quay.io prunes dated manylinux tags after some months, so a dated tag baked
+-- into a released rule would rot. Resolve the newest active dated tag at
+-- submit time and bake it into the generated session workflow (auditable and
+-- reproducible per session); fall back to the maintained `latest` tag when the
+-- tags API is unreachable. `linux_image=` overrides both.
+
+function CommonsBase_Remote__GitHub__0_2_0.digits_value(s, from, to)
+  if to < from then
+    return nil
+  end
+  local n = 0
+  local i = from
+  while i <= to do
+    local b = string.byte(s, i) or 0
+    if b < 48 or b > 57 then
+      return nil
+    end
+    n = n * 10 + (b - 48)
+    i = i + 1
+  end
+  return n
+end
+
+-- A dated manylinux tag has the shape YYYY.MM.DD-N. Returns a comparable pair
+-- (date number YYYYMMDD, build number N), or nil when the tag is not dated.
+function CommonsBase_Remote__GitHub__0_2_0.dated_manylinux_tag_order(name)
+  local len = string.len(name)
+  if len < 12 then
+    return nil, nil
+  end
+  local yyyy = CommonsBase_Remote__GitHub__0_2_0.digits_value(name, 1, 4)
+  local mm = CommonsBase_Remote__GitHub__0_2_0.digits_value(name, 6, 7)
+  local dd = CommonsBase_Remote__GitHub__0_2_0.digits_value(name, 9, 10)
+  local n = CommonsBase_Remote__GitHub__0_2_0.digits_value(name, 12, len)
+  if yyyy == nil or mm == nil or dd == nil or n == nil then
+    return nil, nil
+  end
+  if string.sub(name, 5, 5) ~= "." or string.sub(name, 8, 8) ~= "." or string.sub(name, 11, 11) ~= "-" then
+    return nil, nil
+  end
+  return yyyy * 10000 + mm * 100 + dd, n
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.newest_manylinux_tag(json_text)
+  local text = tostring(json_text or "")
+  local best = nil
+  local best_date = 0
+  local best_n = 0
+  local search_from = 1
+  local scanning = true
+  while scanning do
+    local key_start, key_end = string.find(text, "\"name\"", search_from, true)
+    if not key_start then
+      scanning = false
+    else
+      local name = nil
+      local colon = string.find(text, ":", key_end + 1, true)
+      if colon then
+        local quote_start = string.find(text, "\"", colon + 1, true)
+        if quote_start then
+          local value_end = string.find(text, "\"", quote_start + 1, true)
+          if value_end then
+            name = string.sub(text, quote_start + 1, value_end - 1)
+          end
+        end
+      end
+      if name then
+        local date_num, n = CommonsBase_Remote__GitHub__0_2_0.dated_manylinux_tag_order(name)
+        if date_num then
+          local better = false
+          if best == nil then
+            better = true
+          elseif date_num > best_date then
+            better = true
+          elseif date_num == best_date and n > best_n then
+            better = true
+          end
+          if better then
+            best = name
+            best_date = date_num
+            best_n = n
+          end
+        end
+      end
+      search_from = key_end + 1
+    end
+  end
+  return best
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.resolve_linux_image(request, p)
+  if p.linux_image then
+    return p.linux_image
+  end
+  local url = "https://quay.io/api/v1/repository/pypa/manylinux_2_28_x86_64/tag/?limit=100&onlyActiveTags=true"
+  local r = CommonsBase_Remote__GitHub__0_2_0.try_capture(
+    request, "curl", { "-fsSL", "--max-time", "30", url },
+    { quiet = true, allowfailure = true, max_output_bytes = 4194304 })
+  local tag = nil
+  if r.code == "0" then
+    tag = CommonsBase_Remote__GitHub__0_2_0.newest_manylinux_tag(r.stdout)
+  end
+  if not tag then
+    print("Could not query quay.io for the newest manylinux_2_28 tag; using `latest`.")
+    tag = "latest"
+  end
+  return "quay.io/pypa/manylinux_2_28_x86_64:" .. tag
+end
+
 function CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
   local p = {}
   local continued = request.continued or {}
@@ -124,6 +339,26 @@ function CommonsBase_Remote__GitHub__0_2_0.parse_common_args(request)
     p.gh_user_supplied = true
   end
   p.git = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.git) or "git"
+  local execution_abi_opt = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.execution_abi)
+  local target_abi_opt = CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.target_abi)
+  local abi_plan = CommonsBase_Remote__GitHub__0_2_0.resolve_abi_plan(execution_abi_opt, target_abi_opt)
+  p.execution_abi = abi_plan.execution_abi
+  p.target_abi = abi_plan.target_abi
+  p.runs_on = abi_plan.runs_on
+  p.exec_os = abi_plan.exec_os
+  p.linux_image = CommonsBase_Remote__GitHub__0_2_0.parse_linux_image(
+    CommonsBase_Remote__GitHub__0_2_0.user_scalar(request.user.linux_image), p.exec_os)
+  if p.target_abi ~= p.execution_abi then
+    -- The target ABI is part of the signed, audited argv: prepend the global
+    -- dk0 option so the runner builds for the requested target ABI.
+    local abi_argv = { "--target-abi", p.target_abi }
+    local ai = 1
+    while p.argv[ai] do
+      table.insert(abi_argv, p.argv[ai])
+      ai = ai + 1
+    end
+    p.argv = abi_argv
+  end
   return p
 end
 
@@ -166,6 +401,10 @@ function CommonsBase_Remote__GitHub__0_2_0.write_plan(request, file, p, rule_nam
   request.io.write(file, "dry_run=" .. dry_run .. "\n")
   request.io.write(file, "cmd=" .. p.cmd .. "\n")
   request.io.write(file, "commandvsl=" .. p.commandvsl .. "\n")
+  request.io.write(file, "execution_abi=" .. p.execution_abi .. "\n")
+  request.io.write(file, "target_abi=" .. p.target_abi .. "\n")
+  request.io.write(file, "runs_on=" .. p.runs_on .. "\n")
+  request.io.write(file, "container_image=" .. CommonsBase_Remote__GitHub__0_2_0.plan_image_text(p) .. "\n")
   request.io.write(file, "session_root_branch=" .. plan.session_root_branch .. "\n")
   request.io.write(file, "session_branch=" .. plan.session_branch .. "\n")
   request.io.write(file, "workflow_path=" .. plan.workflow_path .. "\n")
@@ -1231,6 +1470,14 @@ function CommonsBase_Remote__GitHub__0_2_0.copy_project_dir_to_commit(request, d
         rel = "dk0.cmd"
         dest_rel = ".dk/r/c/dk0.cmd"
         seen.dk0cmd = true
+      elseif source_name == "dk1" then
+        rel = "dk1"
+        dest_rel = ".dk/r/c/dk1"
+        seen.dk1 = true
+      elseif source_name == "dk1.cmd" then
+        rel = "dk1.cmd"
+        dest_rel = ".dk/r/c/dk1.cmd"
+        seen.dk1cmd = true
       elseif source_name == "build.pub" then
         -- Only the PUBLIC key is snapshotted and committed, so the runner can
         -- verify the signed manifests. The signing secret build.sec is never
@@ -1310,7 +1557,70 @@ function CommonsBase_Remote__GitHub__0_2_0.prepare_commit_repo_inputs(request, s
   -- Re-create the ignore/attributes policy (the full rm above cleared it).
   CommonsBase_Remote__GitHub__0_2_0.ensure_commit_repo_gitignore(request, coreutils, ".dk/r/c")
   CommonsBase_Remote__GitHub__0_2_0.copy_project_dir_to_commit(request, snapshot_dir, p, copied, seen)
-  return copied
+  CommonsBase_Remote__GitHub__0_2_0.stage_tool_imports(request, p, coreutils, copied)
+  return copied, seen
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.is_tool_import_name(name)
+  local suffix = ".values.json"
+  if string.len(name) <= string.len(suffix) then
+    return false
+  end
+  if string.sub(name, 0 - string.len(suffix)) ~= suffix then
+    return false
+  end
+  if string.sub(name, 1, 18) == "CommonsBase_Build." then
+    return true
+  end
+  if string.sub(name, 1, 16) == "CommonsBase_Std." then
+    return true
+  end
+  return false
+end
+
+-- Stage the CommonsBase_Std / CommonsBase_Build import metadata into the commit
+-- repo so the runner's launcher can resolve the packaged gh and age tools with
+-- `get-object`. Under `dk0 remote` isolation those imports live in the isolated
+-- host workspace (tool_import_dir), not in the project snapshot; a consumer's
+-- own etc/dk/i imports were already staged by copy_project_dir_to_commit and
+-- are never overwritten here.
+function CommonsBase_Remote__GitHub__0_2_0.stage_tool_imports(request, p, coreutils, copied)
+  local import_dir = CommonsBase_Remote__GitHub__0_2_0.tool_import_dir(request, p)
+  local listing = CommonsBase_Remote__GitHub__0_2_0.try_capture(
+    request, coreutils, { "ls", "-1", import_dir },
+    { quiet = true, allowfailure = true })
+  if listing.code ~= "0" then
+    return
+  end
+  local text = listing.stdout or ""
+  local start = 1
+  local len = string.len(text)
+  while start <= len do
+    local nl = string.find(text, "\n", start, true)
+    local line
+    if nl then
+      line = string.sub(text, start, nl - 1)
+    else
+      line = string.sub(text, start)
+    end
+    local name = CommonsBase_Remote__GitHub__0_2_0.trim(line)
+    if name ~= "" and CommonsBase_Remote__GitHub__0_2_0.is_tool_import_name(name) then
+      local dest_rel = ".dk/r/c/etc/dk/i/" .. name
+      local already = CommonsBase_Remote__GitHub__0_2_0.try_capture(
+        request, coreutils, { "test", "-f", dest_rel },
+        { quiet = true, allowfailure = true })
+      if already.code ~= "0" then
+        CommonsBase_Remote__GitHub__0_2_0.install_project_file(
+          request, coreutils, import_dir .. "/" .. name, dest_rel)
+        table.insert(copied, "etc/dk/i/" .. name)
+      end
+    end
+    if nl then
+      start = nl + 1
+    else
+      start = len + 1
+    end
+  end
 end
 
 function CommonsBase_Remote__GitHub__0_2_0.write_windows_wrapper(request, wrapper_name, body)
@@ -1452,8 +1762,56 @@ function CommonsBase_Remote__GitHub__0_2_0.now_utc(request, p, coreutils)
   return timestamp
 end
 
-function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep)
-  local template = table.concat({
+-- mlfront-signify 2.4.2.307 assets on the MlFront GitLab generic package
+-- registry. The sha256 pins were verified by independent download and hash.
+function CommonsBase_Remote__GitHub__0_2_0.signify_pin(execution_abi)
+  if execution_abi == "Windows_x86_64" then
+    return "mlfront-signify-windows_x86_64.exe", "536e74c4081e680cfcfa8e2517aa7e41c192e1db9a2b14a09295163743eb577a"
+  end
+  if execution_abi == "Darwin_arm64" then
+    return "mlfront-signify-darwin_arm64", "09077a9444b14a99607adbcffc06e1e24f058eac255533bdf90cf9c2ffcc5f8e"
+  end
+  return "mlfront-signify-linux_x86_64", "568c929c04497823b22a63b90b35025fdca3e68d585e760d41d13b90067a52b0"
+end
+
+function CommonsBase_Remote__GitHub__0_2_0.wf_extend(dst, src)
+  local i = 1
+  while src[i] do
+    table.insert(dst, src[i])
+    i = i + 1
+  end
+end
+
+-- Generate the per-session workflow for the selected execution ABI. Step
+-- bodies are emitted per OS: Linux and macOS use bash, Windows uses native
+-- PowerShell (pwsh, the windows-latest default) so dk0.cmd/dk1.cmd never run
+-- through a Unix shim. The step ORDER is part of the trust model: nothing from
+-- the committed tree (the dk0/dk1 launchers included) executes before the
+-- `Determine phase` step verified the signed stage index, and only the
+-- signify verifier (sha256-pinned here) plus per-OS native tools run before
+-- that point. The packaged gh and age tools are fetched after verification
+-- with `get-object` and cached under the gitignored `.local/` namespace.
+function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
+  local signify_asset, signify_sha = CommonsBase_Remote__GitHub__0_2_0.signify_pin(w.execution_abi)
+  local signify_url = "https://gitlab.com/api/v4/projects/60486861/packages/generic/mlfront-signify/2.4.2.307/" .. signify_asset
+  local slot = "Release." .. w.execution_abi
+  local trustflags = "--trust-local-package CommonsBase_Build --trust-local-package CommonsBase_Std"
+  local launcher = "./dk0"
+  if w.use_dk1 then
+    launcher = "./dk1"
+  end
+  local wlauncher = ".\\dk0.cmd"
+  if w.use_dk1 then
+    wlauncher = ".\\dk1.cmd"
+  end
+  local sumcheck = "sha256sum -c"
+  local sumcheck_stdin = "sha256sum -c -"
+  if w.exec_os == "macos" then
+    sumcheck = "shasum -a 256 -c"
+    sumcheck_stdin = "shasum -a 256 -c -"
+  end
+  local lines = {}
+  CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
     "# Generated by CommonsBase_Remote.GitHub@0.2.0.",
     "# See dist/any.u for the detailed orchestration flow.",
     "name: dk-session.__SESSION__",
@@ -1467,6 +1825,8 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep)
     "      - 'dk.u'",
     "      - 'dk0'",
     "      - 'dk0.cmd'",
+    "      - 'dk1'",
+    "      - 'dk1.cmd'",
     "      - 'etc/dk/**'",
     "      - 'INDEX'",
     "      - 'INDEX.sig'",
@@ -1475,177 +1835,422 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep)
     "concurrency:",
     "  group: dk-session-__SESSION__",
     "  cancel-in-progress: false",
+    "env:",
+    "  DKCODER_DATA_HOME: ${{ github.workspace }}/.local/dkdata",
     "jobs:",
     "  session:",
-    "    runs-on: ubuntu-latest",
+    "    runs-on: " .. w.runs_on
+  })
+  if w.image then
+    CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
+      "    container:",
+      "      image: " .. w.image
+    })
+  end
+  CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
     "    steps:",
     "      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2",
     "        with:",
-    "          fetch-depth: 0",
-    "      - name: Install mlfront-signify",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          mkdir -p .dk-remote/bin",
-    "          curl -fsSL 'https://gitlab.com/api/v4/projects/60486861/packages/generic/mlfront-signify/2.4.2.180/mlfront-signify-linux_x86_64' -o .dk-remote/bin/mlfront-signify",
-    "          printf '%s  %s\\n' '07a378f0db43999a9fdf1ab8b031a2007f90fbc24664cc5bca90315634b10f06' '.dk-remote/bin/mlfront-signify' | sha256sum -c -",
-    "          chmod +x .dk-remote/bin/mlfront-signify",
-    "          ./.dk-remote/bin/mlfront-signify --help >/dev/null",
-    "      - name: Determine phase",
-    "        id: phase",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          tag=\"$(git tag --points-at HEAD | grep -E '0[.]1[.][0-9]{14}-(stage|exec)$' | head -n 1 || true)\"",
-    "          if [ -z \"$tag\" ]; then",
-    "            echo 'Expected the current commit to have a dk-session stage or exec tag' 1>&2",
-    "            exit 1",
-    "          fi",
-    "          phase=\"${tag##*-}\"",
-    "          case \"$phase\" in",
-    "            stage|exec) ;;",
-    "            *)",
-    "              echo \"Unsupported dk-session phase: $phase\" 1>&2",
-    "              exit 1",
-    "              ;;",
-    "          esac",
-    "          ./.dk-remote/bin/mlfront-signify -V -p t/k/build.pub -x etc/dk/s/__SESSION__-stage-index.sig -m etc/dk/s/__SESSION__-stage-index.txt",
-    "          sha256sum -c etc/dk/s/__SESSION__-stage-index.txt",
-    "          argv_file='etc/dk/s/__SESSION__-argv.txt'",
-    "          test -s \"$argv_file\"",
-    "          argv_count=0",
-    "          while IFS= read -r encoded; do",
-    "            [ -n \"$encoded\" ]",
-    "            printf '%s' \"$encoded\" | grep -Eq '^[A-Za-z0-9+/=]+$'",
-    "            printf '%s' \"$encoded\" | base64 -d >/dev/null",
-    "            argv_count=$((argv_count + 1))",
-    "          done < \"$argv_file\"",
-    "          [ \"$argv_count\" -ge 1 ]",
-    "          echo \"tag=$tag\" >> \"$GITHUB_OUTPUT\"",
-    "          echo \"phase=$phase\" >> \"$GITHUB_OUTPUT\"",
-    "      - name: Print remote command",
-    "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
-    "        shell: bash",
-    "        run: |",
-    "          audit_line=\"$(tail -n 1 etc/dk/s/__SESSION__-audit.txt)\"",
-    "          printf 'Remote command: %s\\n' \"${audit_line#*Z }\"",
-    "      - name: Create stage prerelease",
-    "        if: steps.phase.outputs.phase == 'stage'",
-    "        env:",
-    "          GH_TOKEN: ${{ github.token }}",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          tag='${{ steps.phase.outputs.tag }}'",
-    "          notes=\"$(tail -n 1 etc/dk/s/__SESSION__-audit.txt)\"",
-    "          gh release view \"$tag\" >/dev/null 2>&1 || \\",
-    "            gh release create \"$tag\" --prerelease --title \"$tag\" --notes \"$notes\"",
-    "      - name: Verify INDEX signature",
-    "        if: steps.phase.outputs.phase == 'exec'",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          ./.dk-remote/bin/mlfront-signify -V -p t/k/build.pub -x INDEX.sig -m INDEX",
-    "          sha256sum -c INDEX",
-    "      - name: Decrypt staged assets",
-    "        if: steps.phase.outputs.phase == 'exec'",
-    "        env:",
-    "          GH_TOKEN: ${{ github.token }}",
-    "          DK_SESSION_KEY: ${{ secrets.DK_SESSION_KEY }}",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          manifest='etc/dk/s/__SESSION__-assets.txt'",
-    "          # Only local-asset commands commit a manifest (covered by the already",
-    "          # verified INDEX). Workspace-only commands (lua/test) ship none.",
-    "          [ -f \"$manifest\" ] || exit 0",
-    "          if [ -z \"${DK_SESSION_KEY:-}\" ]; then",
-    "            echo 'Local assets require the DK_SESSION_KEY secret' 1>&2",
-    "            exit 1",
-    "          fi",
-    "          tag='${{ steps.phase.outputs.tag }}'",
-    "          stage_tag=\"${tag%-exec}-stage\"",
-    "          mkdir -p .dk-remote/enc",
-    "          curl -fsSL 'https://github.com/FiloSottile/age/releases/download/v1.3.1/age-v1.3.1-linux-amd64.tar.gz' -o .dk-remote/age.tar.gz",
-    "          printf '%s  %s\\n' 'bdc69c09cbdd6cf8b1f333d372a1f58247b3a33146406333e30c0f26e8f51377' '.dk-remote/age.tar.gz' | sha256sum -c -",
-    "          tar -xzf .dk-remote/age.tar.gz -C .dk-remote",
-    "          umask 077",
-    "          printf '%s\\n' \"$DK_SESSION_KEY\" > .dk-remote/session.key",
-    "          while read -r cksum dest; do",
-    "            [ -n \"$cksum\" ] || continue",
-    "            # Path-traversal defense (in addition to host-side F-12): reject",
-    "            # absolute paths and any '..' segment before writing.",
-    "            case \"$dest\" in",
-    "              /*) echo \"Unsafe absolute asset path: $dest\" 1>&2; exit 1;;",
-    "            esac",
-    "            case \"/$dest/\" in",
-    "              */../*) echo \"Unsafe asset path: $dest\" 1>&2; exit 1;;",
-    "            esac",
-    "            gh release download \"$stage_tag\" -R '${{ github.repository }}' -p \"$cksum.age\" -D .dk-remote/enc --clobber",
-    "            mkdir -p \"$(dirname \"$dest\")\"",
-    "            .dk-remote/age/age -d -i .dk-remote/session.key -o \"$dest\" \".dk-remote/enc/$cksum.age\"",
-    "          done < \"$manifest\"",
-    "          rm -f .dk-remote/session.key",
-    "      - name: Execute remote command",
-    "        if: steps.phase.outputs.phase == 'exec'",
-    "        id: exec",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          chmod +x ./dk0 2>/dev/null || true",
-    "          # INDEX/INDEX.sig were already verified with t/k/build.pub. Remove",
-    "          # the committed public key now so the runner's dk0 generates its own",
-    "          # fresh build keypair: a public key with no matching secret key (the",
-    "          # secret is intentionally never shipped) makes dk0 fail to sign.",
-    "          rm -f t/k/build.pub",
-    "          argv=()",
-    "          while IFS= read -r encoded; do",
-    "            arg=\"$(printf '%s' \"$encoded\" | base64 -d)\"",
-    "            argv+=(\"$arg\")",
-    "          done < etc/dk/s/__SESSION__-argv.txt",
-    "          [ \"${#argv[@]}\" -ge 1 ]",
-    "          set +e",
-    "          ./dk0 \"${argv[@]}\" >dk-session-stdout.txt 2>dk-session-stderr.txt",
-    "          code=$?",
-    "          set -e",
-    "          # Combine streams into a single always-non-empty result file. gh",
-    "          # cannot upload 0-byte assets, so individual empty stdout/stderr",
-    "          # files fail; one delimited file avoids that and needs no zip.",
-    "          {",
-    "            printf 'DKEXIT %s\\n' \"$code\"",
-    "            printf '<<<DKSTDOUT>>>\\n'",
-    "            cat dk-session-stdout.txt",
-    "            printf '\\n<<<DKSTDERR>>>\\n'",
-    "            cat dk-session-stderr.txt",
-    "          } > dk-session-result.txt",
-    "          echo \"code=$code\" >> \"$GITHUB_OUTPUT\"",
-    "          exit 0",
-    "      - name: Publish exec prerelease",
-    "        if: steps.phase.outputs.phase == 'exec'",
-    "        env:",
-    "          GH_TOKEN: ${{ github.token }}",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          tag='${{ steps.phase.outputs.tag }}'",
-    "          notes=\"exit=${{ steps.exec.outputs.code }}\"",
-    "          gh release view \"$tag\" >/dev/null 2>&1 || \\",
-    "            gh release create \"$tag\" --prerelease --title \"$tag\" --notes \"$notes\" dk-session-result.txt",
-    "          gh release upload \"$tag\" dk-session-result.txt --clobber",
-    "      - name: Cleanup old dk-session prereleases",
-    "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
-    "        env:",
-    "          GH_TOKEN: ${{ github.token }}",
-    "        shell: bash",
-    "        run: |",
-    "          set -euo pipefail",
-    "          gh release list --exclude-drafts --json tagName,isPrerelease,createdAt --jq '.[] | select(.isPrerelease and (.tagName|test(\"^0[.]1[.][0-9]{14}-(stage|exec)$\"))) | [.createdAt,.tagName] | @tsv' |",
-    "            sort -r |",
-    "            awk 'NR>__KEEP__ {print $2}' |",
-    "            while read -r oldtag; do",
-    "              [ -n \"$oldtag\" ] && gh release delete \"$oldtag\" --cleanup-tag --yes",
-    "            done",
-  }, "\n") .. "\n"
+    "          fetch-depth: 0"
+  })
+  if w.image then
+    CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
+      "      - name: Prepare static libc for the manylinux container",
+      "        shell: bash",
+      "        run: dnf install -y glibc-static glibc-static.i686 glibc-devel.i686 libgcc.i686"
+    })
+  end
+  CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
+    "      - name: Cache dk-fetched tools",
+    "        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0",
+    "        with:",
+    "          path: |",
+    "            .local/gh",
+    "            .local/age",
+    "            .local/dkdata",
+    "          key: dk-tools-" .. w.execution_abi .. "-gh2.92.0-age1.3.1-${{ hashFiles('dk.u') }}",
+    "          restore-keys: |",
+    "            dk-tools-" .. w.execution_abi .. "-gh2.92.0-age1.3.1-"
+  })
+  if w.exec_os == "windows" then
+    CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
+      "      - name: Install mlfront-signify",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          New-Item -ItemType Directory -Force .dk-remote/bin | Out-Null",
+      "          Invoke-WebRequest '" .. signify_url .. "' -OutFile .dk-remote/bin/mlfront-signify.exe",
+      "          $h = (Get-FileHash .dk-remote/bin/mlfront-signify.exe -Algorithm SHA256).Hash.ToLower()",
+      "          if ($h -ne '" .. signify_sha .. "') { throw \"mlfront-signify checksum mismatch: $h\" }",
+      "          & .dk-remote/bin/mlfront-signify.exe --help | Out-Null",
+      "          if ($LASTEXITCODE -ne 0) { throw 'mlfront-signify --help failed' }",
+      "      - name: Determine phase",
+      "        id: phase",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          $tags = @((git tag --points-at HEAD) | Where-Object { $_ -match '^0[.]1[.][0-9]{14}-(stage|exec)$' })",
+      "          if ($tags.Count -lt 1) { throw 'Expected the current commit to have a dk-session stage or exec tag' }",
+      "          $tag = $tags[0]",
+      "          $phase = $tag.Split('-')[-1]",
+      "          & .dk-remote/bin/mlfront-signify.exe -V -p t/k/build.pub -x etc/dk/s/__SESSION__-stage-index.sig -m etc/dk/s/__SESSION__-stage-index.txt",
+      "          if ($LASTEXITCODE -ne 0) { throw 'stage index signature verification failed' }",
+      "          foreach ($line in Get-Content etc/dk/s/__SESSION__-stage-index.txt) {",
+      "            if ($line -notmatch '^([0-9a-f]{64}) \\*(.+)$') { throw \"Bad stage index line: $line\" }",
+      "            $want = $Matches[1]",
+      "            $file = $Matches[2]",
+      "            $got = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLower()",
+      "            if ($got -ne $want) { throw \"Checksum mismatch for $file\" }",
+      "          }",
+      "          $argvLines = @(Get-Content etc/dk/s/__SESSION__-argv.txt)",
+      "          if ($argvLines.Count -lt 1) { throw 'Expected at least one argv entry' }",
+      "          foreach ($encoded in $argvLines) {",
+      "            if ($encoded -notmatch '^[A-Za-z0-9+/=]+$') { throw 'Bad argv encoding' }",
+      "            [Convert]::FromBase64String($encoded) | Out-Null",
+      "          }",
+      "          \"tag=$tag\" | Add-Content $env:GITHUB_OUTPUT",
+      "          \"phase=$phase\" | Add-Content $env:GITHUB_OUTPUT",
+      "      - name: Fetch dk-packaged tools",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          if (-not (Test-Path .local/gh/bin/gh.exe)) {",
+      "            & " .. wlauncher .. " " .. trustflags .. " get-object CommonsBase_Build.GitHubCLI@2.92.0 -s " .. slot .. " -d .local/gh",
+      "            if ($LASTEXITCODE -ne 0) { throw 'get-object CommonsBase_Build.GitHubCLI failed' }",
+      "          }",
+      "          & .local/gh/bin/gh.exe --version",
+      "          if ($LASTEXITCODE -ne 0) { throw 'packaged gh failed' }",
+      "          Join-Path $PWD '.local/gh/bin' | Add-Content $env:GITHUB_PATH",
+      "      - name: Print remote command",
+      "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
+      "        shell: pwsh",
+      "        run: |",
+      "          $auditLine = Get-Content etc/dk/s/__SESSION__-audit.txt | Select-Object -Last 1",
+      "          $idx = $auditLine.IndexOf('Z ')",
+      "          Write-Host ('Remote command: ' + $auditLine.Substring($idx + 2))",
+      "      - name: Create stage prerelease",
+      "        if: steps.phase.outputs.phase == 'stage'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          $tag = '${{ steps.phase.outputs.tag }}'",
+      "          $notes = Get-Content etc/dk/s/__SESSION__-audit.txt | Select-Object -Last 1",
+      "          gh release view $tag *> $null",
+      "          if ($LASTEXITCODE -ne 0) {",
+      "            gh release create $tag --prerelease --title $tag --notes $notes",
+      "            if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }",
+      "          }",
+      "      - name: Verify INDEX signature",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          & .dk-remote/bin/mlfront-signify.exe -V -p t/k/build.pub -x INDEX.sig -m INDEX",
+      "          if ($LASTEXITCODE -ne 0) { throw 'INDEX signature verification failed' }",
+      "          foreach ($line in Get-Content INDEX) {",
+      "            if ($line -notmatch '^([0-9a-f]{64}) \\*(.+)$') { throw \"Bad INDEX line: $line\" }",
+      "            $want = $Matches[1]",
+      "            $file = $Matches[2]",
+      "            $got = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLower()",
+      "            if ($got -ne $want) { throw \"Checksum mismatch for $file\" }",
+      "          }",
+      "      - name: Decrypt staged assets",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "          DK_SESSION_KEY: ${{ secrets.DK_SESSION_KEY }}",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          $manifest = 'etc/dk/s/__SESSION__-assets.txt'",
+      "          # Only local-asset commands commit a manifest (covered by the already",
+      "          # verified INDEX). Workspace-only commands (lua/test) ship none.",
+      "          if (-not (Test-Path $manifest)) { exit 0 }",
+      "          if (-not $env:DK_SESSION_KEY) { throw 'Local assets require the DK_SESSION_KEY secret' }",
+      "          $tag = '${{ steps.phase.outputs.tag }}'",
+      "          $stageTag = $tag -replace '-exec$', '-stage'",
+      "          if (-not (Test-Path .local/age/bin/age.exe)) {",
+      "            & " .. wlauncher .. " " .. trustflags .. " get-object CommonsBase_Build.Age@1.3.1 -s " .. slot .. " -d .local/age",
+      "            if ($LASTEXITCODE -ne 0) { throw 'get-object CommonsBase_Build.Age failed' }",
+      "          }",
+      "          New-Item -ItemType Directory -Force .dk-remote/enc | Out-Null",
+      "          $keyPath = Join-Path $PWD '.dk-remote/session.key'",
+      "          [IO.File]::WriteAllText($keyPath, $env:DK_SESSION_KEY + \"`n\")",
+      "          foreach ($line in Get-Content $manifest) {",
+      "            if ($line -eq '') { continue }",
+      "            $parts = $line -split ' ', 2",
+      "            $cksum = $parts[0]",
+      "            $dest = $parts[1]",
+      "            # Path-traversal defense (in addition to host-side F-12): reject",
+      "            # absolute paths, drive-letter paths and any '..' segment.",
+      "            if ($dest -match '^[/\\\\]' -or $dest -match '^[A-Za-z]:') { throw \"Unsafe absolute asset path: $dest\" }",
+      "            if ((('/' + $dest + '/') -replace '\\\\', '/') -match '/\\.\\./') { throw \"Unsafe asset path: $dest\" }",
+      "            gh release download $stageTag -R '${{ github.repository }}' -p \"$cksum.age\" -D .dk-remote/enc --clobber",
+      "            if ($LASTEXITCODE -ne 0) { throw 'gh release download failed' }",
+      "            $destDir = Split-Path -Parent $dest",
+      "            if ($destDir) { New-Item -ItemType Directory -Force $destDir | Out-Null }",
+      "            & .local/age/bin/age.exe -d -i $keyPath -o $dest \".dk-remote/enc/$cksum.age\"",
+      "            if ($LASTEXITCODE -ne 0) { throw 'age decrypt failed' }",
+      "          }",
+      "          Remove-Item -Force $keyPath",
+      "      - name: Execute remote command",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        id: exec",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          # INDEX/INDEX.sig were already verified with t/k/build.pub. Remove",
+      "          # the committed public key now so the runner's dk0 generates its own",
+      "          # fresh build keypair: a public key with no matching secret key (the",
+      "          # secret is intentionally never shipped) makes dk0 fail to sign.",
+      "          Remove-Item -Force t/k/build.pub -ErrorAction SilentlyContinue",
+      "          $argv = @()",
+      "          foreach ($encoded in Get-Content etc/dk/s/__SESSION__-argv.txt) {",
+      "            if ($encoded -eq '') { continue }",
+      "            $argv += [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($encoded))",
+      "          }",
+      "          if ($argv.Count -lt 1) { throw 'Expected at least one argv entry' }",
+      "          # Quote for cmd batch parsing (mirrors the host-side windows_quote",
+      "          # helper) and let cmd do byte-true stream redirection: PowerShell",
+      "          # redirection of native output re-encodes text, which would corrupt",
+      "          # the byte-exact DKEXIT result framing.",
+      "          function Quote-CmdArg([string]$s) {",
+      "            if ($s -eq '') { return '\"\"' }",
+      "            if ($s -match '[ \\t\"&|<>^()]') { return '\"' + ($s -replace '\"', '\"\"') + '\"' }",
+      "            return $s",
+      "          }",
+      "          $cmdline = '.\\dk0.cmd'",
+      "          foreach ($a in $argv) { $cmdline += ' ' + (Quote-CmdArg $a) }",
+      "          $batch = '@echo off' + [Environment]::NewLine + $cmdline + ' 1>dk-session-stdout.txt 2>dk-session-stderr.txt'",
+      "          Set-Content -LiteralPath .dk-remote/dk-exec.cmd -Value $batch -Encoding oem",
+      "          & .dk-remote/dk-exec.cmd",
+      "          $code = $LASTEXITCODE",
+      "          # Combine streams into a single always-non-empty result file. gh",
+      "          # cannot upload 0-byte assets, so individual empty stdout/stderr",
+      "          # files fail; one delimited file avoids that and needs no zip.",
+      "          $outB = [IO.File]::ReadAllBytes((Join-Path $PWD 'dk-session-stdout.txt'))",
+      "          $errB = [IO.File]::ReadAllBytes((Join-Path $PWD 'dk-session-stderr.txt'))",
+      "          $head = [Text.Encoding]::ASCII.GetBytes(\"DKEXIT $code`n<<<DKSTDOUT>>>`n\")",
+      "          $mid = [Text.Encoding]::ASCII.GetBytes(\"`n<<<DKSTDERR>>>`n\")",
+      "          $fs = [IO.File]::Create((Join-Path $PWD 'dk-session-result.txt'))",
+      "          $fs.Write($head, 0, $head.Length)",
+      "          $fs.Write($outB, 0, $outB.Length)",
+      "          $fs.Write($mid, 0, $mid.Length)",
+      "          $fs.Write($errB, 0, $errB.Length)",
+      "          $fs.Close()",
+      "          \"code=$code\" | Add-Content $env:GITHUB_OUTPUT",
+      "          exit 0",
+      "      - name: Publish exec prerelease",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          $tag = '${{ steps.phase.outputs.tag }}'",
+      "          $notes = 'exit=${{ steps.exec.outputs.code }}'",
+      "          gh release view $tag *> $null",
+      "          if ($LASTEXITCODE -ne 0) {",
+      "            gh release create $tag --prerelease --title $tag --notes $notes dk-session-result.txt",
+      "            if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }",
+      "          }",
+      "          gh release upload $tag dk-session-result.txt --clobber",
+      "          if ($LASTEXITCODE -ne 0) { throw 'gh release upload failed' }",
+      "      - name: Cleanup old dk-session prereleases",
+      "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "        shell: pwsh",
+      "        run: |",
+      "          $ErrorActionPreference = 'Stop'",
+      "          $json = gh release list --exclude-drafts --json tagName,isPrerelease,createdAt | ConvertFrom-Json",
+      "          if ($LASTEXITCODE -ne 0) { throw 'gh release list failed' }",
+      "          $old = @($json | Where-Object { $_.isPrerelease -and $_.tagName -match '^0[.]1[.][0-9]{14}-(stage|exec)$' } | Sort-Object createdAt -Descending | Select-Object -Skip __KEEP__)",
+      "          foreach ($r in $old) {",
+      "            gh release delete $r.tagName --cleanup-tag --yes",
+      "            if ($LASTEXITCODE -ne 0) { throw \"gh release delete failed for $($r.tagName)\" }",
+      "          }"
+    })
+  else
+    CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
+      "      - name: Install mlfront-signify",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          mkdir -p .dk-remote/bin",
+      "          curl -fsSL '" .. signify_url .. "' -o .dk-remote/bin/mlfront-signify",
+      "          printf '%s  %s\\n' '" .. signify_sha .. "' '.dk-remote/bin/mlfront-signify' | " .. sumcheck_stdin,
+      "          chmod +x .dk-remote/bin/mlfront-signify",
+      "          ./.dk-remote/bin/mlfront-signify --help >/dev/null",
+      "      - name: Determine phase",
+      "        id: phase",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          tag=\"$(git tag --points-at HEAD | grep -E '0[.]1[.][0-9]{14}-(stage|exec)$' | head -n 1 || true)\"",
+      "          if [ -z \"$tag\" ]; then",
+      "            echo 'Expected the current commit to have a dk-session stage or exec tag' 1>&2",
+      "            exit 1",
+      "          fi",
+      "          phase=\"${tag##*-}\"",
+      "          case \"$phase\" in",
+      "            stage|exec) ;;",
+      "            *)",
+      "              echo \"Unsupported dk-session phase: $phase\" 1>&2",
+      "              exit 1",
+      "              ;;",
+      "          esac",
+      "          ./.dk-remote/bin/mlfront-signify -V -p t/k/build.pub -x etc/dk/s/__SESSION__-stage-index.sig -m etc/dk/s/__SESSION__-stage-index.txt",
+      "          " .. sumcheck .. " etc/dk/s/__SESSION__-stage-index.txt",
+      "          argv_file='etc/dk/s/__SESSION__-argv.txt'",
+      "          test -s \"$argv_file\"",
+      "          argv_count=0",
+      "          while IFS= read -r encoded; do",
+      "            [ -n \"$encoded\" ]",
+      "            printf '%s' \"$encoded\" | grep -Eq '^[A-Za-z0-9+/=]+$'",
+      "            printf '%s' \"$encoded\" | base64 -d >/dev/null",
+      "            argv_count=$((argv_count + 1))",
+      "          done < \"$argv_file\"",
+      "          [ \"$argv_count\" -ge 1 ]",
+      "          echo \"tag=$tag\" >> \"$GITHUB_OUTPUT\"",
+      "          echo \"phase=$phase\" >> \"$GITHUB_OUTPUT\"",
+      "      - name: Fetch dk-packaged tools",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          chmod +x " .. launcher .. " 2>/dev/null || true",
+      "          if ! ./.local/gh/bin/gh --version >/dev/null 2>&1; then",
+      "            " .. launcher .. " " .. trustflags .. " get-object CommonsBase_Build.GitHubCLI@2.92.0 -s " .. slot .. " -d .local/gh",
+      "          fi",
+      "          ./.local/gh/bin/gh --version",
+      "          echo \"$PWD/.local/gh/bin\" >> \"$GITHUB_PATH\"",
+      "      - name: Print remote command",
+      "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
+      "        shell: bash",
+      "        run: |",
+      "          audit_line=\"$(tail -n 1 etc/dk/s/__SESSION__-audit.txt)\"",
+      "          printf 'Remote command: %s\\n' \"${audit_line#*Z }\"",
+      "      - name: Create stage prerelease",
+      "        if: steps.phase.outputs.phase == 'stage'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          tag='${{ steps.phase.outputs.tag }}'",
+      "          notes=\"$(tail -n 1 etc/dk/s/__SESSION__-audit.txt)\"",
+      "          gh release view \"$tag\" >/dev/null 2>&1 || \\",
+      "            gh release create \"$tag\" --prerelease --title \"$tag\" --notes \"$notes\"",
+      "      - name: Verify INDEX signature",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          ./.dk-remote/bin/mlfront-signify -V -p t/k/build.pub -x INDEX.sig -m INDEX",
+      "          " .. sumcheck .. " INDEX",
+      "      - name: Decrypt staged assets",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "          DK_SESSION_KEY: ${{ secrets.DK_SESSION_KEY }}",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          manifest='etc/dk/s/__SESSION__-assets.txt'",
+      "          # Only local-asset commands commit a manifest (covered by the already",
+      "          # verified INDEX). Workspace-only commands (lua/test) ship none.",
+      "          [ -f \"$manifest\" ] || exit 0",
+      "          if [ -z \"${DK_SESSION_KEY:-}\" ]; then",
+      "            echo 'Local assets require the DK_SESSION_KEY secret' 1>&2",
+      "            exit 1",
+      "          fi",
+      "          tag='${{ steps.phase.outputs.tag }}'",
+      "          stage_tag=\"${tag%-exec}-stage\"",
+      "          if ! ./.local/age/bin/age --version >/dev/null 2>&1; then",
+      "            " .. launcher .. " " .. trustflags .. " get-object CommonsBase_Build.Age@1.3.1 -s " .. slot .. " -d .local/age",
+      "          fi",
+      "          mkdir -p .dk-remote/enc",
+      "          umask 077",
+      "          printf '%s\\n' \"$DK_SESSION_KEY\" > .dk-remote/session.key",
+      "          while read -r cksum dest; do",
+      "            [ -n \"$cksum\" ] || continue",
+      "            # Path-traversal defense (in addition to host-side F-12): reject",
+      "            # absolute paths and any '..' segment before writing.",
+      "            case \"$dest\" in",
+      "              /*) echo \"Unsafe absolute asset path: $dest\" 1>&2; exit 1;;",
+      "            esac",
+      "            case \"/$dest/\" in",
+      "              */../*) echo \"Unsafe asset path: $dest\" 1>&2; exit 1;;",
+      "            esac",
+      "            gh release download \"$stage_tag\" -R '${{ github.repository }}' -p \"$cksum.age\" -D .dk-remote/enc --clobber",
+      "            mkdir -p \"$(dirname \"$dest\")\"",
+      "            ./.local/age/bin/age -d -i .dk-remote/session.key -o \"$dest\" \".dk-remote/enc/$cksum.age\"",
+      "          done < \"$manifest\"",
+      "          rm -f .dk-remote/session.key",
+      "      - name: Execute remote command",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        id: exec",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          chmod +x ./dk0 2>/dev/null || true",
+      "          # INDEX/INDEX.sig were already verified with t/k/build.pub. Remove",
+      "          # the committed public key now so the runner's dk0 generates its own",
+      "          # fresh build keypair: a public key with no matching secret key (the",
+      "          # secret is intentionally never shipped) makes dk0 fail to sign.",
+      "          rm -f t/k/build.pub",
+      "          argv=()",
+      "          while IFS= read -r encoded; do",
+      "            arg=\"$(printf '%s' \"$encoded\" | base64 -d)\"",
+      "            argv+=(\"$arg\")",
+      "          done < etc/dk/s/__SESSION__-argv.txt",
+      "          [ \"${#argv[@]}\" -ge 1 ]",
+      "          set +e",
+      "          ./dk0 \"${argv[@]}\" >dk-session-stdout.txt 2>dk-session-stderr.txt",
+      "          code=$?",
+      "          set -e",
+      "          # Combine streams into a single always-non-empty result file. gh",
+      "          # cannot upload 0-byte assets, so individual empty stdout/stderr",
+      "          # files fail; one delimited file avoids that and needs no zip.",
+      "          {",
+      "            printf 'DKEXIT %s\\n' \"$code\"",
+      "            printf '<<<DKSTDOUT>>>\\n'",
+      "            cat dk-session-stdout.txt",
+      "            printf '\\n<<<DKSTDERR>>>\\n'",
+      "            cat dk-session-stderr.txt",
+      "          } > dk-session-result.txt",
+      "          echo \"code=$code\" >> \"$GITHUB_OUTPUT\"",
+      "          exit 0",
+      "      - name: Publish exec prerelease",
+      "        if: steps.phase.outputs.phase == 'exec'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          tag='${{ steps.phase.outputs.tag }}'",
+      "          notes=\"exit=${{ steps.exec.outputs.code }}\"",
+      "          gh release view \"$tag\" >/dev/null 2>&1 || \\",
+      "            gh release create \"$tag\" --prerelease --title \"$tag\" --notes \"$notes\" dk-session-result.txt",
+      "          gh release upload \"$tag\" dk-session-result.txt --clobber",
+      "      - name: Cleanup old dk-session prereleases",
+      "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
+      "        env:",
+      "          GH_TOKEN: ${{ github.token }}",
+      "        shell: bash",
+      "        run: |",
+      "          set -euo pipefail",
+      "          gh release list --exclude-drafts --json tagName,isPrerelease,createdAt --jq '.[] | select(.isPrerelease and (.tagName|test(\"^0[.]1[.][0-9]{14}-(stage|exec)$\"))) | [.createdAt,.tagName] | @tsv' |",
+      "            sort -r |",
+      "            awk 'NR>__KEEP__ {print $2}' |",
+      "            while read -r oldtag; do",
+      "              [ -n \"$oldtag\" ] && gh release delete \"$oldtag\" --cleanup-tag --yes",
+      "            done"
+    })
+  end
+  local template = table.concat(lines, "\n") .. "\n"
   template = CommonsBase_Remote__GitHub__0_2_0.replace_all(template, "__SESSION__", tostring(session))
   template = CommonsBase_Remote__GitHub__0_2_0.replace_all(template, "__KEEP__", tostring(keep))
   return template
@@ -1897,6 +2502,7 @@ function CommonsBase_Remote__GitHub__0_2_0.commit_repo_gitattributes_text()
   return table.concat({
     "dk.u text eol=lf",
     "dk0 text eol=lf",
+    "dk1 text eol=lf",
     "*.c text eol=lf",
     "*.cpp text eol=lf",
     "*.h text eol=lf",
@@ -1941,10 +2547,13 @@ function CommonsBase_Remote__GitHub__0_2_0.reset_commit_repo_worktree(request, c
     {
       "-C", commit_dir, "clean", "-f", "-d", "--",
       ".github/workflows",
+      ".gitattributes",
       ".gitignore",
       "dk.u",
       "dk0",
       "dk0.cmd",
+      "dk1",
+      "dk1.cmd",
       "etc/dk",
       "INDEX",
       "INDEX.sig",
@@ -2144,7 +2753,7 @@ function CommonsBase_Remote__GitHub__0_2_0.orchestrate_submit(request, p)
   -- prepare_commit_repo_inputs clears all tracked files (dropping any strays the
   -- session branch carries) and then re-creates the ignore/attributes policy and
   -- copies the intended inputs.
-  local copied = CommonsBase_Remote__GitHub__0_2_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
+  local copied, seen = CommonsBase_Remote__GitHub__0_2_0.prepare_commit_repo_inputs(request, snapshot_dir, p, coreutils)
 
   -- Materialize any local-asset bundles into a gitignored staging area (from the
   -- snapshot, which holds the mirror sources) BEFORE the snapshot is closed. The
@@ -2177,6 +2786,30 @@ function CommonsBase_Remote__GitHub__0_2_0.orchestrate_submit(request, p)
   local stage_index_rel = "etc/dk/s/" .. tostring(selected) .. "-stage-index.txt"
   local stage_sig_rel = "etc/dk/s/" .. tostring(selected) .. "-stage-index.sig"
   local workflow_rel = ".github/workflows/" .. workflow
+  local linux_image = nil
+  if p.exec_os == "linux" then
+    linux_image = CommonsBase_Remote__GitHub__0_2_0.resolve_linux_image(request, p)
+    print("Remote Linux container image: " .. linux_image)
+  end
+  local use_dk1 = false
+  if p.exec_os == "windows" then
+    if seen.dk1cmd then
+      use_dk1 = true
+    end
+  else
+    if seen.dk1 then
+      use_dk1 = true
+    end
+  end
+  local w = {
+    execution_abi = p.execution_abi,
+    target_abi = p.target_abi,
+    runs_on = p.runs_on,
+    exec_os = p.exec_os,
+    image = linux_image,
+    use_dk1 = use_dk1
+  }
+  print("Remote execution ABI: " .. p.execution_abi .. " (runs-on " .. p.runs_on .. "); target ABI: " .. p.target_abi)
   CommonsBase_Remote__GitHub__0_2_0.write_project_text(request, coreutils, commit_dir .. "/" .. audit_rel, timestamp .. "Z " .. p.commandvsl .. "\n", "0644")
   CommonsBase_Remote__GitHub__0_2_0.write_project_text(
     request,
@@ -2188,17 +2821,30 @@ function CommonsBase_Remote__GitHub__0_2_0.orchestrate_submit(request, p)
     request,
     coreutils,
     commit_dir .. "/" .. workflow_rel,
-    CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(selected, p.retention),
+    CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(selected, p.retention, w),
     "0644")
-  CommonsBase_Remote__GitHub__0_2_0.write_checksum_manifest(request, commit_dir, { audit_rel, argv_rel, workflow_rel }, stage_index_rel, coreutils)
+  -- The stage index covers ALL staged inputs (launchers, workspace, imports),
+  -- not just the control files: the stage commit carries them so the runner
+  -- may run the verified dk0/dk1 launchers (for the packaged gh) in the stage
+  -- phase as well as the exec phase.
+  local stage_manifest_paths = { audit_rel, argv_rel, workflow_rel, ".gitignore", ".gitattributes" }
+  local pci = 1
+  while copied[pci] do
+    table.insert(stage_manifest_paths, copied[pci])
+    pci = pci + 1
+  end
+  CommonsBase_Remote__GitHub__0_2_0.write_checksum_manifest(request, commit_dir, stage_manifest_paths, stage_index_rel, coreutils)
   CommonsBase_Remote__GitHub__0_2_0.sign_file(request, commit_dir, stage_index_rel, stage_sig_rel)
-  CommonsBase_Remote__GitHub__0_2_0.capture(
-    request,
-    p.git,
-    {
-      "-C", commit_dir, "add",
-      ".gitignore", audit_rel, argv_rel, stage_index_rel, stage_sig_rel, workflow_rel, "t/k/build.pub"
-    })
+  local stage_add_args = {
+    "-C", commit_dir, "add",
+    ".gitignore", ".gitattributes", audit_rel, argv_rel, stage_index_rel, stage_sig_rel, workflow_rel
+  }
+  pci = 1
+  while copied[pci] do
+    table.insert(stage_add_args, copied[pci])
+    pci = pci + 1
+  end
+  CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, stage_add_args)
   CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "commit", "-m", "dk remote " .. timestamp .. " stage" })
   -- (lua-ml cannot index a call result directly, so use a temp variable)
   local stage_head = CommonsBase_Remote__GitHub__0_2_0.capture(request, p.git, { "-C", commit_dir, "rev-parse", "HEAD" })
@@ -2237,6 +2883,7 @@ function CommonsBase_Remote__GitHub__0_2_0.orchestrate_submit(request, p)
   table.insert(manifest_paths, stage_sig_rel)
   table.insert(manifest_paths, workflow_rel)
   table.insert(manifest_paths, ".gitignore")
+  table.insert(manifest_paths, ".gitattributes")
   if staged_assets.items[1] then
     table.insert(manifest_paths, assets_rel)
   end
@@ -2415,6 +3062,8 @@ function uirules.Run(command, request, continue_)
         p.workspace,
         "dk0",
         "dk0.cmd",
+        "dk1",
+        "dk1.cmd",
         "etc/dk/d/**",
         "etc/dk/i/**",
         "etc/dk/v/**",
