@@ -29,8 +29,8 @@ jobs:
         with:
             pubkey: ${{ secrets.distribute_0_2_pubkey }}
             seckey: ${{ secrets.distribute_0_2_seckey }}
-            options: -nosysinc --integrity checksum
-            store: release
+            options: -nosysinc
+            store: none
             standalone: true
             distscript: dist/any.u
             execution-abi: Linux_x86_64
