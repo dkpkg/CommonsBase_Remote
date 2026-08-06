@@ -30,7 +30,7 @@ jobs:
             pubkey: ${{ secrets.distribute_0_2_pubkey }}
             seckey: ${{ secrets.distribute_0_2_seckey }}
             options: -nosysinc
-            store: release
+            store: none
             standalone: true
             distscript: dist/any.u
             execution-abi: Linux_x86_64
