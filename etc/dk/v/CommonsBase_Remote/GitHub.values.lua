@@ -1882,10 +1882,11 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
     "          fetch-depth: 0"
   })
   if w.image then
+    -- No `dnf install` of static libc here: running a value shell command or a
+    -- test/lua/get-bundle needs no C compilation, and the manylinux dynamic
+    -- glibc runs the dk engine fine. Installing it made a session wait on a slow
+    -- multi-package dnf for no benefit.
     CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
-      "      - name: Prepare static libc for the manylinux container",
-      "        shell: bash",
-      "        run: dnf install -y glibc-static glibc-static.i686 glibc-devel.i686 libgcc.i686",
       "      - name: Trust the workspace git repository in the container",
       "        shell: bash",
       "        # The container runs as a different uid than the checkout owner, so",
@@ -2366,9 +2367,13 @@ function CommonsBase_Remote__GitHub__0_2_0.wait_workflow(request, ownerrepo, bra
   -- Match the workflow run by the pushed commit SHA. Listing by branch alone
   -- races against stale runs (e.g. a previous push's run) that may still be the
   -- latest, so filter server-side on headSha for the run this push triggered.
+  -- The cap is generous (25 minutes at 10s between polls): a container job can
+  -- spend minutes just pulling the image and fetching the packaged tools before
+  -- the command runs, and a real failure completes quickly regardless.
+  local max_attempts = 150
   local attempt = 1
-  while attempt <= 60 do
-    print("Polling GitHub workflow " .. workflow .. " on " .. branch .. " for " .. tostring(head_sha) .. " (" .. tostring(attempt) .. "/60)")
+  while attempt <= max_attempts do
+    print("Polling GitHub workflow " .. workflow .. " on " .. branch .. " for " .. tostring(head_sha) .. " (" .. tostring(attempt) .. "/" .. tostring(max_attempts) .. ")")
     local result = CommonsBase_Remote__GitHub__0_2_0.try_capture(
       request,
       p.gh,
