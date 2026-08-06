@@ -1862,7 +1862,13 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
     CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
       "      - name: Prepare static libc for the manylinux container",
       "        shell: bash",
-      "        run: dnf install -y glibc-static glibc-static.i686 glibc-devel.i686 libgcc.i686"
+      "        run: dnf install -y glibc-static glibc-static.i686 glibc-devel.i686 libgcc.i686",
+      "      - name: Trust the workspace git repository in the container",
+      "        shell: bash",
+      "        # The container runs as a different uid than the checkout owner, so",
+      "        # git refuses to operate on the workspace ('dubious ownership') and",
+      "        # the phase step's `git tag` finds nothing. Mark it safe.",
+      "        run: git config --global --add safe.directory '*'"
     })
   end
   CommonsBase_Remote__GitHub__0_2_0.wf_extend(lines, {
