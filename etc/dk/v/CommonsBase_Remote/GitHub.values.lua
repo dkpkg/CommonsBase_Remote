@@ -1795,12 +1795,35 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
   local signify_asset, signify_sha = CommonsBase_Remote__GitHub__0_2_0.signify_pin(w.execution_abi)
   local signify_url = "https://gitlab.com/api/v4/projects/60486861/packages/generic/mlfront-signify/2.4.2.307/" .. signify_asset
   local slot = "Release." .. w.execution_abi
+  -- Where the runner keeps the dk data home, fetched tools and scratch keys.
+  -- On a container job the workspace is bind-mounted from the host and is slow
+  -- for the heavy dk I/O (engine bootstrap, 800MB+ valuestore unzip), so use
+  -- the container's own fast filesystem; elsewhere the workspace is native disk
+  -- and `.local` under it is fine.
+  local tools_root = ".local"
+  local dkdata_env = "${{ github.workspace }}/.local/dkdata"
+  if w.image then
+    tools_root = "/opt/dk-remote"
+    dkdata_env = "/opt/dk-remote/dkdata"
+  end
+  -- bash reference to a fetched program: absolute path runs directly, a
+  -- workspace-relative path needs `./` so bash does not search PATH.
+  local ghexec = tools_root .. "/gh/bin/gh"
+  local ageexec = tools_root .. "/age/bin/age"
+  if not w.image then
+    ghexec = "./" .. ghexec
+    ageexec = "./" .. ageexec
+  end
+  local ghpath = tools_root .. "/gh/bin"
+  if not w.image then
+    ghpath = "$PWD/.local/gh/bin"
+  end
   -- The committed t/k/build.pub verifies the signed stage index and INDEX, but
   -- its secret key is never shipped, so a runner dk1/dk0 that used the default
   -- t/k keys dir would fail to sign its own value store (build.sec missing).
   -- Point the tool bootstrap at a scratch keys dir so dk1 generates its own
   -- ephemeral build keypair there, exactly as the local orchestrator does.
-  local trustflags = "--keys-dir .local/hostkeys --trust-local-package CommonsBase_Build --trust-local-package CommonsBase_Std"
+  local trustflags = "--keys-dir " .. tools_root .. "/hostkeys --trust-local-package CommonsBase_Build --trust-local-package CommonsBase_Std"
   local launcher = "./dk0"
   if w.use_dk1 then
     launcher = "./dk1"
@@ -1841,7 +1864,7 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
     "  group: dk-session-__SESSION__",
     "  cancel-in-progress: false",
     "env:",
-    "  DKCODER_DATA_HOME: ${{ github.workspace }}/.local/dkdata",
+    "  DKCODER_DATA_HOME: " .. dkdata_env,
     "jobs:",
     "  session:",
     "    runs-on: " .. w.runs_on
@@ -1876,9 +1899,9 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
     "        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0",
     "        with:",
     "          path: |",
-    "            .local/gh",
-    "            .local/age",
-    "            .local/dkdata",
+    "            " .. tools_root .. "/gh",
+    "            " .. tools_root .. "/age",
+    "            " .. tools_root .. "/dkdata",
     "          key: dk-tools-" .. w.execution_abi .. "-gh2.92.0-age1.3.1-${{ hashFiles('dk.u') }}",
     "          restore-keys: |",
     "            dk-tools-" .. w.execution_abi .. "-gh2.92.0-age1.3.1-"
@@ -2132,14 +2155,14 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
       "        run: |",
       "          set -euo pipefail",
       "          chmod +x " .. launcher .. " 2>/dev/null || true",
-      "          if ! ./.local/gh/bin/gh --version >/dev/null 2>&1; then",
-      "            " .. launcher .. " " .. trustflags .. " get-object CommonsBase_Build.GitHubCLI@2.92.0 -s " .. slot .. " -d .local/gh",
+      "          if ! " .. ghexec .. " --version >/dev/null 2>&1; then",
+      "            " .. launcher .. " " .. trustflags .. " get-object CommonsBase_Build.GitHubCLI@2.92.0 -s " .. slot .. " -d " .. tools_root .. "/gh",
       "          fi",
       "          # get-object does not preserve the executable bit on Unix, so the",
       "          # freshly fetched binary must be made executable before it runs.",
-      "          chmod +x ./.local/gh/bin/gh",
-      "          ./.local/gh/bin/gh --version",
-      "          echo \"$PWD/.local/gh/bin\" >> \"$GITHUB_PATH\"",
+      "          chmod +x " .. ghexec,
+      "          " .. ghexec .. " --version",
+      "          echo \"" .. ghpath .. "\" >> \"$GITHUB_PATH\"",
       "      - name: Print remote command",
       "        if: steps.phase.outputs.phase == 'stage' || steps.phase.outputs.phase == 'exec'",
       "        shell: bash",
@@ -2182,10 +2205,10 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
       "          fi",
       "          tag='${{ steps.phase.outputs.tag }}'",
       "          stage_tag=\"${tag%-exec}-stage\"",
-      "          if ! ./.local/age/bin/age --version >/dev/null 2>&1; then",
-      "            " .. launcher .. " " .. trustflags .. " get-object CommonsBase_Build.Age@1.3.1 -s " .. slot .. " -d .local/age",
+      "          if ! " .. ageexec .. " --version >/dev/null 2>&1; then",
+      "            " .. launcher .. " " .. trustflags .. " get-object CommonsBase_Build.Age@1.3.1 -s " .. slot .. " -d " .. tools_root .. "/age",
       "          fi",
-      "          chmod +x ./.local/age/bin/age",
+      "          chmod +x " .. ageexec,
       "          mkdir -p .dk-remote/enc",
       "          umask 077",
       "          printf '%s\\n' \"$DK_SESSION_KEY\" > .dk-remote/session.key",
@@ -2201,7 +2224,7 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
       "            esac",
       "            gh release download \"$stage_tag\" -R '${{ github.repository }}' -p \"$cksum.age\" -D .dk-remote/enc --clobber",
       "            mkdir -p \"$(dirname \"$dest\")\"",
-      "            ./.local/age/bin/age -d -i .dk-remote/session.key -o \"$dest\" \".dk-remote/enc/$cksum.age\"",
+      "            " .. ageexec .. " -d -i .dk-remote/session.key -o \"$dest\" \".dk-remote/enc/$cksum.age\"",
       "          done < \"$manifest\"",
       "          rm -f .dk-remote/session.key",
       "      - name: Execute remote command",
