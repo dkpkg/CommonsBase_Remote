@@ -1795,7 +1795,12 @@ function CommonsBase_Remote__GitHub__0_2_0.workflow_yaml(session, keep, w)
   local signify_asset, signify_sha = CommonsBase_Remote__GitHub__0_2_0.signify_pin(w.execution_abi)
   local signify_url = "https://gitlab.com/api/v4/projects/60486861/packages/generic/mlfront-signify/2.4.2.307/" .. signify_asset
   local slot = "Release." .. w.execution_abi
-  local trustflags = "--trust-local-package CommonsBase_Build --trust-local-package CommonsBase_Std"
+  -- The committed t/k/build.pub verifies the signed stage index and INDEX, but
+  -- its secret key is never shipped, so a runner dk1/dk0 that used the default
+  -- t/k keys dir would fail to sign its own value store (build.sec missing).
+  -- Point the tool bootstrap at a scratch keys dir so dk1 generates its own
+  -- ephemeral build keypair there, exactly as the local orchestrator does.
+  local trustflags = "--keys-dir .local/hostkeys --trust-local-package CommonsBase_Build --trust-local-package CommonsBase_Std"
   local launcher = "./dk0"
   if w.use_dk1 then
     launcher = "./dk1"
