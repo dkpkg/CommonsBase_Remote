@@ -2493,29 +2493,17 @@ function CommonsBase_Remote__GitHub__0_2_0.commit_repo_gitignore_text()
 end
 
 function CommonsBase_Remote__GitHub__0_2_0.commit_repo_gitattributes_text()
-  -- The exec workflow verifies the committed files against a locally-computed
-  -- INDEX (sha256). git EOL normalization must therefore be deterministic, so
-  -- that what the Linux runner checks out is byte-identical to what was hashed
-  -- locally on Windows. Force LF for the runner-critical text files, and treat
-  -- the Windows-only `.cmd`/`.bat` wrappers as binary (no conversion) so their
-  -- CRLF bytes survive the round-trip and their checksums match.
+  -- The runner verifies committed files against a locally-computed sha256
+  -- manifest (the signed stage index and INDEX), so every committed file must
+  -- check out byte-identical to what was hashed on the host. `* -text` disables
+  -- all EOL conversion, so no file's bytes change through the git round-trip
+  -- regardless of the runner's `core.autocrlf`. The `dk0`/`dk1` launchers are
+  -- additionally pinned to LF so the Linux and macOS runners can execute them
+  -- (the host launchers are already LF, so this does not change their bytes).
   return table.concat({
-    "dk.u text eol=lf",
+    "* -text",
     "dk0 text eol=lf",
     "dk1 text eol=lf",
-    "*.c text eol=lf",
-    "*.cpp text eol=lf",
-    "*.h text eol=lf",
-    "*.json text eol=lf",
-    "*.jsonc text eol=lf",
-    "*.sed text eol=lf",
-    "*.sh text eol=lf",
-    "*.txt text eol=lf",
-    "*.u text eol=lf",
-    "*.yml text eol=lf",
-    "*.yaml text eol=lf",
-    "*.cmd -text",
-    "*.bat -text",
     ""
   }, "\n")
 end
