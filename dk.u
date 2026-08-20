@@ -17,7 +17,7 @@ the remote exit code.
 Apache-2.0
 
 ## workspace
-  %% actual_version("2.4.2.308")
+  %% actual_version("2.4.2.329")
   'actual_version'
   '2.4.2.279'
 
